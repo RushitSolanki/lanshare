@@ -7,7 +7,7 @@
   "tauri": {
     "bundle": {
       "active": true,
-      "targets": "all",
+      "targets": ["app"],
       "identifier": "com.example.lanshare"
     },
     "windows": [
