@@ -25,7 +25,7 @@ LanShare is a cross-platform, zero-configuration P2P text sharing app for Window
 
 1. Clone the repository:
    ```sh
-   git clone https://github.com/yourusername/lanshare.git
+   git clone https://github.com/RushitSolanki/lanshare.git
    cd lanshare
    ```
 
@@ -84,7 +84,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Implement persistent storage
 
 ## Issues
-If you encounter any issues, please [open an issue](https://github.com/yourusername/lanshare/issues) on GitHub.
+If you encounter any issues, please [open an issue](https://github.com/RushitSolanki/lanshare/issues) on GitHub.
 
 ## Acknowledgments
 - Built with [Tauri](https://tauri.app/)
