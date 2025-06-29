@@ -1,0 +1,28 @@
+{
+  "build": {
+    "beforeBuildCommand": "",
+    "beforeDevCommand": "",
+    "distDir": "../dist"
+  },
+  "tauri": {
+    "bundle": {
+      "active": true,
+      "targets": "all",
+      "identifier": "com.example.lanshare"
+    },
+    "windows": [
+      {
+        "title": "LanShare",
+        "width": 600,
+        "height": 500,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "allowlist": {
+      "all": true
+    }
+  }
+} 
