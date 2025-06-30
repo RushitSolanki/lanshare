@@ -56,10 +56,22 @@ The application exposes the following Tauri commands for the frontend:
 
 ### Prerequisites
 
-- Rust 1.70+
-- Node.js 16+
-- Tauri CLI
+- **Rust**: 1.88.0+ (tested with 1.88.0)
+- **Tauri CLI**: 1.6.5+ (tested with 1.6.5)
+- **Node.js**: 16+
+- **Tauri Dependencies**: 
+  - `tauri = "1.5"` (as specified in Cargo.toml)
+  - `tauri-build = "1.5"` (as specified in Cargo.toml)
 - **macOS**: `create-dmg` (for DMG creation)
+- **Windows**: Microsoft Visual Studio C++ Build Tools
+- **Linux**: `sudo apt install libwebkit2gtk-4.0-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`
+
+> **⚠️ Version Compatibility Note**: This project is tested and confirmed working with:
+> - Rust 1.88.0
+> - Tauri CLI 1.6.5
+> - Tauri framework 1.5.x
+> 
+> Using newer versions may cause build failures. If you encounter issues, try downgrading to these specific versions.
 
 ### Building
 
@@ -97,6 +109,45 @@ To create a DMG installer on macOS:
    ```
 
 The DMG file will be created at `src-tauri/target/release/bundle/dmg/lanshare_0.1.0_aarch64.dmg`.
+
+### Windows EXE Creation
+
+To create a Windows executable and installer:
+
+1. **Prerequisites** (if not already installed):
+   ```bash
+   # Install Microsoft Visual Studio C++ Build Tools
+   # Download from: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+   ```
+
+2. Build the application:
+   ```bash
+   cargo tauri build
+   ```
+
+3. **Output files** will be created in `src-tauri/target/release/bundle/`:
+   - **Executable**: `msi/lanshare_0.1.0_x64_en-US.msi` (Windows installer)
+   - **Portable**: `wix/lanshare_0.1.0_x64_en-US.msi` (alternative installer)
+   - **Direct EXE**: `app/lanshare.exe` (standalone executable)
+
+4. **Optional - Create portable executable**:
+   ```bash
+   # The standalone .exe file can be distributed directly
+   # Located at: src-tauri/target/release/lanshare.exe
+   ```
+
+### Linux AppImage Creation
+
+To create a Linux AppImage:
+
+1. Build the application:
+   ```bash
+   cargo tauri build
+   ```
+
+2. **Output files** will be created in `src-tauri/target/release/bundle/`:
+   - **AppImage**: `appimage/lanshare_0.1.0_amd64.AppImage`
+   - **Debian package**: `deb/lanshare_0.1.0_amd64.deb`
 
 ### Testing
 
@@ -155,11 +206,20 @@ RUST_LOG=warn cargo tauri dev
 ## Getting Started
 
 ### Prerequisites
-1. Install Rust (1.70 or later): https://rustup.rs/
-2. Install Tauri prerequisites:
+1. Install Rust (1.88.0 or later): https://rustup.rs/
+2. Install Tauri CLI (1.6.5 or later):
+   ```bash
+   cargo install tauri-cli --version 1.6.5
+   ```
+3. Install Tauri prerequisites:
    - **macOS**: Xcode Command Line Tools
    - **Linux**: `sudo apt install libwebkit2gtk-4.0-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`
    - **Windows**: Microsoft Visual Studio C++ Build Tools
+
+> **⚠️ Important**: This project is tested with specific versions. If you encounter build issues:
+> - Use Rust 1.88.0: `rustup install 1.88.0 && rustup default 1.88.0`
+> - Use Tauri CLI 1.6.5: `cargo install tauri-cli --version 1.6.5`
+> - The project uses Tauri framework 1.5.x (specified in Cargo.toml)
 
 ### Installation & Development
 
