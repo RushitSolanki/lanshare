@@ -2,7 +2,8 @@
   "build": {
     "beforeBuildCommand": "",
     "beforeDevCommand": "",
-    "distDir": "../dist"
+    "distDir": "../dist",
+    "devPath": "../dist"
   },
   "tauri": {
     "bundle": {

@@ -10,6 +10,18 @@
   <div class="container">
     <h1>LanShare</h1>
     <div id="status">Status: <span id="status-text">Disconnected</span></div>
+    
+    <!-- Debug Panel -->
+    <div id="debug-panel" style="background: #f7fafc; border: 1px solid #e2e8f0; padding: 10px; margin: 10px 0; border-radius: 5px;">
+      <h3>Debug Information</h3>
+      <div id="debug-info">
+        <p><strong>Peer ID:</strong> <span id="peer-id">Loading...</span></p>
+        <p><strong>Peer Count:</strong> <span id="peer-count">Loading...</span></p>
+        <p><strong>Discovered Peers:</strong> <span id="peers-list">Loading...</span></p>
+      </div>
+      <button onclick="window.debugLanShare()" style="background: #3182ce; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Refresh Debug Info</button>
+    </div>
+    
     <textarea id="main-text" placeholder="Start typing to share text..." autofocus></textarea>
   </div>
   <script src="main.js"></script>
