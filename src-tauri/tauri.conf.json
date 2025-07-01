@@ -7,8 +7,13 @@
   "tauri": {
     "bundle": {
       "active": true,
-      "targets": ["app"],
-      "identifier": "com.example.lanshare"
+      "targets": [
+        "app"
+      ],
+      "identifier": "com.example.lanshare",
+      "icon": [
+        "icons/icon.ico"
+      ]
     },
     "windows": [
       {
@@ -25,4 +30,4 @@
       "all": true
     }
   }
-} 
+}
