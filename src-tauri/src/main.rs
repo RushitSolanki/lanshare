@@ -41,7 +41,7 @@ fn main() -> Result<()> {
     info!("Starting LanShare application...");
 
     // Create the discovery service
-    let mut discovery_service = DiscoveryService::new(Duration::from_secs(30)); // 30 second timeout
+    let discovery_service = DiscoveryService::new(Duration::from_secs(30)); // 30 second timeout
     let peer_registry = discovery_service.registry();
     
     let app_state = AppState {
