@@ -1,6 +1,6 @@
 # LanShare
 
-A peer-to-peer file sharing application built with Tauri and Rust.
+A peer-to-peer file sharing application built with Tauri (now using Tauri 2.x) and Rust.
 
 ## Features
 
@@ -8,6 +8,7 @@ A peer-to-peer file sharing application built with Tauri and Rust.
 - **Real-time Peer Management**: Maintain an up-to-date list of available peers
 - **Automatic Cleanup**: Remove stale peers that haven't been seen for 30 seconds
 - **Cross-platform**: Works on Windows, macOS, and Linux
+- **Modern Icon Assets**: Updated and expanded icon set for all major platforms
 
 ## UDP Peer Discovery System
 
@@ -56,22 +57,24 @@ The application exposes the following Tauri commands for the frontend:
 
 ### Prerequisites
 
-- **Rust**: 1.88.0+ (tested with 1.88.0)
-- **Tauri CLI**: 1.6.5+ (tested with 1.6.5)
+- **Rust**: 1.88.0 (tested with 1.88.0)
+- **Cargo**: 1.88.0 (tested with 1.88.0)
+- **Tauri CLI**: 2.6.2 (tested with 2.6.2)
 - **Node.js**: 16+
 - **Tauri Dependencies**: 
-  - `tauri = "1.5"` (as specified in Cargo.toml)
-  - `tauri-build = "1.5"` (as specified in Cargo.toml)
+  - `tauri = "2"` (as specified in Cargo.toml)
+  - `tauri-build = "2"` (as specified in Cargo.toml)
 - **macOS**: `create-dmg` (for DMG creation)
 - **Windows**: Microsoft Visual Studio C++ Build Tools
 - **Linux**: `sudo apt install libwebkit2gtk-4.0-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`
 
 > **⚠️ Version Compatibility Note**: This project is tested and confirmed working with:
 > - Rust 1.88.0
-> - Tauri CLI 1.6.5
-> - Tauri framework 1.5.x
+> - Cargo 1.88.0
+> - Tauri CLI 2.6.2
+> - Tauri framework 2.x
 > 
-> Using newer versions may cause build failures. If you encounter issues, try downgrading to these specific versions.
+> Using older versions may cause build failures. If you encounter issues, upgrade to these specific versions.
 
 ### Building
 
@@ -191,6 +194,11 @@ RUST_LOG=warn cargo tauri dev
 - No authentication mechanism (trusts local network)
 - Consider implementing encryption for production use
 
+## Icon Assets
+
+- The app now includes a comprehensive set of icons for Windows, macOS, Linux, Android, and iOS.
+- Icons are located in `src-tauri/icons/` and are automatically bundled for all platforms.
+
 ## Future Enhancements
 
 - [ ] Encrypted discovery messages
@@ -199,27 +207,32 @@ RUST_LOG=warn cargo tauri dev
 - [ ] Discovery over multiple networks
 - [ ] Peer status indicators
 - [ ] Manual peer addition
-
-## Screenshots
-*Coming soon*
+- [ ] Add file sharing capabilities
+- [ ] Implement encryption for secure sharing
+- [ ] Add clipboard sync
+- [ ] Create mobile companion app
+- [ ] Add user authentication
+- [ ] Implement persistent storage
 
 ## Getting Started
 
 ### Prerequisites
 1. Install Rust (1.88.0 or later): https://rustup.rs/
-2. Install Tauri CLI (1.6.5 or later):
+2. Install Cargo (1.88.0 or later): comes with Rustup
+3. Install Tauri CLI (2.6.2 or later):
    ```bash
-   cargo install tauri-cli --version 1.6.5
+   cargo install tauri-cli --version 2.6.2
    ```
-3. Install Tauri prerequisites:
+4. Install Tauri prerequisites:
    - **macOS**: Xcode Command Line Tools
    - **Linux**: `sudo apt install libwebkit2gtk-4.0-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`
    - **Windows**: Microsoft Visual Studio C++ Build Tools
 
 > **⚠️ Important**: This project is tested with specific versions. If you encounter build issues:
 > - Use Rust 1.88.0: `rustup install 1.88.0 && rustup default 1.88.0`
-> - Use Tauri CLI 1.6.5: `cargo install tauri-cli --version 1.6.5`
-> - The project uses Tauri framework 1.5.x (specified in Cargo.toml)
+> - Use Cargo 1.88.0: comes with Rustup
+> - Use Tauri CLI 2.6.2: `cargo install tauri-cli --version 2.6.2`
+> - The project uses Tauri framework 2.x (specified in Cargo.toml)
 
 ### Installation & Development
 
@@ -243,27 +256,14 @@ RUST_LOG=warn cargo tauri dev
 ```
 LanShare/
 ├── src/                 # Rust backend (Tauri)
-├── src-tauri/          # Tauri-specific configuration
+├── src-tauri/           # Tauri-specific configuration
 │   ├── src/
-│   │   └── main.rs     # Tauri main entry point
-│   ├── Cargo.toml      # Tauri dependencies
-│   └── tauri.conf.json # Tauri configuration
-├── Cargo.toml          # Main Rust dependencies
-└── README.md           # This file
+│   │   └── main.rs      # Tauri main entry point
+│   ├── Cargo.toml       # Tauri dependencies
+│   └── tauri.conf.json  # Tauri configuration
+├── Cargo.toml           # Main Rust dependencies
+└── README.md            # This file
 ```
-
-## Development
-
-### Architecture
-- **Backend**: Rust with Tauri framework
-- **Frontend**: HTML/CSS/JavaScript (Tauri webview)
-- **Networking**: UDP broadcast for peer discovery, WebSocket for real-time sync
-- **Data**: In-memory text storage with real-time synchronization
-
-### Key Components
-- `src/main.rs`: Main application logic
-- `src-tauri/src/main.rs`: Tauri-specific setup and window management
-- `src-tauri/tauri.conf.json`: Application configuration
 
 ## Contributing
 1. Fork the repository
@@ -274,14 +274,6 @@ LanShare/
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Roadmap
-- [ ] Add file sharing capabilities
-- [ ] Implement encryption for secure sharing
-- [ ] Add clipboard sync
-- [ ] Create mobile companion app
-- [ ] Add user authentication
-- [ ] Implement persistent storage
 
 ## Issues
 If you encounter any issues, please [open an issue](https://github.com/RushitSolanki/lanshare/issues) on GitHub.
