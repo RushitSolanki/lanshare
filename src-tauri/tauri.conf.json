@@ -1,21 +1,13 @@
 {
+  "productName": "LanShare",
+  "identifier": "com.example.lanshare",
   "build": {
     "beforeBuildCommand": "",
     "beforeDevCommand": "",
-    "distDir": "../dist",
-    "devPath": "../dist"
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420"
   },
-  "tauri": {
-    "bundle": {
-      "active": true,
-      "targets": [
-        "app"
-      ],
-      "identifier": "com.example.lanshare",
-      "icon": [
-        "icons/icon.ico"
-      ]
-    },
+  "app": {
     "windows": [
       {
         "title": "LanShare",
@@ -26,9 +18,11 @@
     ],
     "security": {
       "csp": null
-    },
-    "allowlist": {
-      "all": true
     }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.ico"]
   }
 }
