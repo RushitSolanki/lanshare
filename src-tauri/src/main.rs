@@ -34,6 +34,16 @@ async fn get_peer_id(state: tauri::State<'_, AppState>) -> Result<Option<String>
     Ok(discovery_service.as_ref().and_then(|ds| ds.peer_id()))
 }
 
+#[tauri::command]
+async fn debug_peer_structure(state: tauri::State<'_, AppState>) -> Result<String, String> {
+    let peers = state.peer_registry.get_peers().await;
+    if let Some(first_peer) = peers.first() {
+        Ok(format!("Peer structure: {:?}", first_peer))
+    } else {
+        Ok("No peers available for debugging".to_string())
+    }
+}
+
 fn main() -> Result<()> {
     // Initialize logging
     env_logger::init();
@@ -55,6 +65,7 @@ fn main() -> Result<()> {
             get_peers,
             get_peer_count,
             get_peer_id,
+            debug_peer_structure
         ])
         .setup(|app| {
             let discovery_service = app.state::<AppState>().discovery_service.clone();
