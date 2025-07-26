@@ -297,8 +297,8 @@ async function initializeApp() {
         setupTextAreaHandler();
         
         // Connect WebSocket
-        //setStatus('Connecting to WebSocket...');
-        //connectWebSocket();
+        setStatus('Connecting to WebSocket...');
+        connectWebSocket();
         
         // Test Tauri commands after initialization
         setTimeout(() => {

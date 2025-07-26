@@ -1713,6 +1713,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "env_logger",
+ "futures-util",
  "log",
  "serde",
  "serde_json",
