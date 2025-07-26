@@ -25,5 +25,16 @@
     <textarea id="main-text" placeholder="Start typing to share text..." autofocus></textarea>
   </div>
   <script src="main.js"></script>
+  <script>
+    // Global Tauri API setup
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log('DOM loaded, checking for Tauri APIs...');
+      if (window.__TAURI__) {
+        console.log('Tauri APIs available globally');
+      } else {
+        console.log('Tauri APIs not available globally');
+      }
+    });
+  </script>
 </body>
 </html>

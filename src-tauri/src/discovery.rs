@@ -174,6 +174,10 @@ impl UdpBroadcaster {
         &self.peer_id
     }
 
+    pub fn set_peer_id(&mut self, peer_id: String) {
+        self.peer_id = peer_id;
+    }
+
     /// Start broadcasting presence messages
     #[allow(dead_code)]
     pub async fn start_broadcasting(&self) -> Result<()> {
@@ -310,11 +314,20 @@ impl DiscoveryService {
 
     /// Get the broadcaster task for spawning
     pub fn get_broadcaster_task(&self, port: u16) -> Result<tokio::task::JoinHandle<()>> {
+        // Use the peer ID that was already generated in start()
+        let peer_id = self.peer_id.clone().ok_or_else(|| {
+            anyhow::anyhow!("Peer ID not available - call start() first")
+        })?;
+        
         let broadcaster = UdpBroadcaster::new(port, Duration::from_secs(5));
         
         Ok(tokio::spawn(async move {
             let broadcaster = match broadcaster.await {
-                Ok(b) => b,
+                Ok(mut b) => {
+                    // Override the peer ID to use the one from start()
+                    b.set_peer_id(peer_id);
+                    b
+                },
                 Err(e) => {
                     error!("Failed to create broadcaster: {}", e);
                     return;

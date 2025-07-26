@@ -13,9 +13,11 @@ function setStatus(text, color = '#3182ce') {
 
 // Wait for Tauri APIs to be available (corrected for static setup)
 async function waitForTauri() {
+    console.log('Waiting for Tauri APIs...');
+    
     return new Promise((resolve, reject) => {
         let attempts = 0;
-        const maxAttempts = 100; // Increased attempts
+        const maxAttempts = 50;
         
         const checkTauri = () => {
             attempts++;
@@ -25,11 +27,29 @@ async function waitForTauri() {
             if (window.__TAURI_API__) {
                 console.log('Found __TAURI_API__');
                 invoke = window.__TAURI_API__.invoke;
-                // Set other APIs from __TAURI_API__
                 resolve();
             } else if (window.__TAURI__) {
                 console.log('Found __TAURI__');
-                invoke = window.__TAURI__.invoke;
+                // Try different ways to access invoke in Tauri 2.x
+                if (window.__TAURI__.invoke) {
+                    invoke = window.__TAURI__.invoke;
+                } else if (window.__TAURI__.core && window.__TAURI__.core.invoke) {
+                    invoke = window.__TAURI__.core.invoke;
+                } else if (window.__TAURI__.api && window.__TAURI__.api.invoke) {
+                    invoke = window.__TAURI__.api.invoke;
+                } else {
+                    console.log('Available __TAURI__ properties:', Object.keys(window.__TAURI__));
+                    // Try to find invoke in the object structure
+                    for (const key of Object.keys(window.__TAURI__)) {
+                        const obj = window.__TAURI__[key];
+                        if (obj && typeof obj.invoke === 'function') {
+                            invoke = obj.invoke;
+                            console.log('Found invoke in:', key);
+                            break;
+                        }
+                    }
+                }
+                
                 appWindow = window.__TAURI__.window?.getCurrent?.();
                 fs = window.__TAURI__.fs;
                 dialog = window.__TAURI__.dialog;
@@ -41,7 +61,7 @@ async function waitForTauri() {
                 invoke = window.invoke;
                 resolve();
             } else if (attempts < maxAttempts) {
-                setTimeout(checkTauri, 50); // Reduced delay
+                setTimeout(checkTauri, 100);
             } else {
                 console.error('Tauri APIs not found after', maxAttempts, 'attempts');
                 console.log('Available window properties:', Object.keys(window).filter(key => key.includes('TAURI') || key === 'invoke'));
@@ -68,6 +88,19 @@ function debugWindowAPIs() {
     
     if (window.__TAURI__) {
         console.log('__TAURI__ contents:', Object.keys(window.__TAURI__));
+        
+        // Deep inspect the __TAURI__ object to find invoke
+        console.log('=== Deep __TAURI__ Inspection ===');
+        for (const key of Object.keys(window.__TAURI__)) {
+            const obj = window.__TAURI__[key];
+            console.log(`${key}:`, typeof obj);
+            if (obj && typeof obj === 'object') {
+                console.log(`  ${key} properties:`, Object.keys(obj));
+                if (obj.invoke) {
+                    console.log(`  Found invoke in ${key}!`);
+                }
+            }
+        }
     }
 }
 
@@ -171,6 +204,7 @@ async function debugTauriCommands() {
         }
         
         // Update UI with results
+        console.log('Updating debug panel with results:', results);
         updateDebugPanel(results);
         
     } catch (error) {
@@ -184,16 +218,26 @@ async function debugTauriCommands() {
 }
 
 function updateDebugPanel(results) {
+    console.log('updateDebugPanel called with:', results);
+    
     const peerIdElement = document.getElementById('peer-id');
     const peerCountElement = document.getElementById('peer-count');
     const peersListElement = document.getElementById('peers-list');
     
+    console.log('Found elements:', {
+        peerId: !!peerIdElement,
+        peerCount: !!peerCountElement,
+        peersList: !!peersListElement
+    });
+    
     if (peerIdElement) {
         peerIdElement.textContent = results.peerId || 'Not available';
+        console.log('Updated peer ID to:', results.peerId || 'Not available');
     }
     
     if (peerCountElement) {
         peerCountElement.textContent = results.peerCount.toString();
+        console.log('Updated peer count to:', results.peerCount.toString());
     }
     
     if (peersListElement) {
@@ -211,8 +255,10 @@ function updateDebugPanel(results) {
             }).join(', ');
             
             peersListElement.textContent = peerList;
+            console.log('Updated peers list to:', peerList);
         } else {
             peersListElement.textContent = 'No peers discovered';
+            console.log('Updated peers list to: No peers discovered');
         }
     }
 }
@@ -251,8 +297,8 @@ async function initializeApp() {
         setupTextAreaHandler();
         
         // Connect WebSocket
-        setStatus('Connecting to WebSocket...');
-        connectWebSocket();
+        //setStatus('Connecting to WebSocket...');
+        //connectWebSocket();
         
         // Test Tauri commands after initialization
         setTimeout(() => {
@@ -278,10 +324,29 @@ if (document.readyState !== 'loading') {
 
 // Global functions
 window.debugLanShare = debugTauriCommands;
+window.debugWindowAPIs = debugWindowAPIs;
 window.reconnectWebSocket = () => {
     if (ws) ws.close();
     setStatus('Reconnecting...');
     connectWebSocket();
+};
+
+// Add a function to test invoke directly
+window.testInvoke = async () => {
+    console.log('Testing invoke directly...');
+    if (invoke) {
+        try {
+            const result = await invoke('get_peer_count');
+            console.log('Invoke test result:', result);
+            return result;
+        } catch (error) {
+            console.error('Invoke test error:', error);
+            return error;
+        }
+    } else {
+        console.error('Invoke not available');
+        return 'Invoke not available';
+    }
 };
 
 window.getConnectionStatus = () => ({
