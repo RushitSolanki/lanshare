@@ -263,6 +263,34 @@ async function initializeApp() {
         
         // Setup event handlers
         setupTextAreaHandler();
+
+        // Simple event listener setup with longer delay
+        setTimeout(() => {
+            console.log('Setting up event listener...');
+            console.log('Tauri object available:', !!window.__TAURI__);
+            console.log('Event object available:', !!(window.__TAURI__ && window.__TAURI__.event));
+            
+            if (window.__TAURI__ && window.__TAURI__.event) {
+                console.log('Available event methods:', Object.keys(window.__TAURI__.event));
+                
+                // Try the standard approach first
+                if (window.__TAURI__.event.listen) {
+                    try {
+                        window.__TAURI__.event.listen('text-received', (event) => {
+                            console.log('Received text from peer:', event.payload);
+                            if (textarea) textarea.value = event.payload;
+                        });
+                        console.log('Event listener set up successfully');
+                    } catch (error) {
+                        console.error('Failed to set up event listener:', error);
+                    }
+                } else {
+                    console.warn('event.listen method not available');
+                }
+            } else {
+                console.warn('Tauri event API not available');
+            }
+        }, 5000); // Wait 5 seconds
         
         // Text sharing is now handled via UDP
         setStatus('Ready for text sharing...');

@@ -57,7 +57,7 @@ async fn send_text_to_peer(state: tauri::State<'_, AppState>, peer_id: String, t
             let message = discovery::DiscoveryMessage {
                 message_type: discovery::MessageType::TextMessage,
                 peer_id: ds.peer_id().unwrap_or_default(),
-                port: 8080,
+                port: 7878, // Changed from 8080 to 7878
                 hostname: None,
                 timestamp: chrono::Utc::now(),
                 text: Some(text.clone()),
@@ -67,7 +67,7 @@ async fn send_text_to_peer(state: tauri::State<'_, AppState>, peer_id: String, t
             if let Ok(message_bytes) = serde_json::to_vec(&message) {
                 // Send UDP message to peer
                 if let Ok(socket) = tokio::net::UdpSocket::bind("0.0.0.0:0").await {
-                    let peer_addr = format!("{}:{}", _peer.ip, _peer.port);
+                    let peer_addr = format!("{}:{}", _peer.ip, 7878); // Changed to use 7878
                     if let Ok(addr) = peer_addr.parse::<std::net::SocketAddr>() {
                         if let Err(e) = socket.send_to(&message_bytes, addr).await {
                             error!("Failed to send text to peer {}: {}", peer_id, e);
@@ -98,7 +98,7 @@ async fn send_text_to_all_peers(state: tauri::State<'_, AppState>, text: String)
         let message = discovery::DiscoveryMessage {
             message_type: discovery::MessageType::TextMessage,
             peer_id: ds.peer_id().unwrap_or_default(),
-            port: 8080,
+            port: 7878, // Changed from 8080 to 7878
             hostname: None,
             timestamp: chrono::Utc::now(),
             text: Some(text.clone()),
@@ -109,7 +109,7 @@ async fn send_text_to_all_peers(state: tauri::State<'_, AppState>, text: String)
             // Broadcast UDP message to all peers
             if let Ok(socket) = tokio::net::UdpSocket::bind("0.0.0.0:0").await {
                 for peer in peers {
-                    let peer_addr = format!("{}:{}", peer.ip, peer.port);
+                    let peer_addr = format!("{}:{}", peer.ip, 7878); // Changed to use 7878
                     if let Ok(addr) = peer_addr.parse::<std::net::SocketAddr>() {
                         if let Err(e) = socket.send_to(&message_bytes, addr).await {
                             error!("Failed to send text to peer {}: {}", peer.id, e);
