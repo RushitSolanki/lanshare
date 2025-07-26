@@ -446,8 +446,20 @@ impl DiscoveryService {
         own_peer_id: &str,
         app_handle: Option<AppHandle>,
     ) -> Result<()> {
-        let message: DiscoveryMessage = serde_json::from_slice(message_bytes)
-            .context("Failed to deserialize discovery message")?;
+        // Log raw UDP packet
+        info!("Received UDP packet from {}: {:?}", src_addr, message_bytes);
+
+        let message: DiscoveryMessage = match serde_json::from_slice(message_bytes) {
+            Ok(msg) => msg,
+            Err(e) => {
+                error!("Failed to deserialize discovery message from {}: {}", src_addr, e);
+                return Ok(());
+            }
+        };
+
+        // Log after deserialization
+        info!("Deserialized message from {}: {:?}", src_addr, message);
+
         if message.peer_id == own_peer_id {
             return Ok(());
         }
@@ -465,6 +477,7 @@ impl DiscoveryService {
                 if let Some(text) = message.text {
                     info!("Received text message from {}: {}", message.peer_id, text);
                     if let Some(app) = app_handle {
+                        info!("Emitting text-received event to frontend: {}", text);
                         let _ = app.emit("text-received", text);
                     }
                 }
