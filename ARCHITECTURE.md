@@ -2,7 +2,7 @@
 
 ## System Overview
 
-LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rust. The application uses UDP-based peer discovery to automatically find other LanShare instances on the local network and enables real-time text sharing between discovered peers.
+LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rust. The application uses UDP-based peer discovery to automatically find other LanShare instances on the local network and enables **real-time text sharing** between discovered peers.
 
 ## High-Level Architecture
 
@@ -13,6 +13,11 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 │  ┌─────────────────┐    ┌─────────────────┐    ┌──────────────┐ │
 │  │   Frontend UI   │    │   Tauri Bridge  │    │  Rust Backend│ │
 │  │   (HTML/CSS/JS) │◄──►│   (IPC Layer)   │◄──►│   (Core Logic)│ │
+│  │                 │    │                 │    │              │ │
+│  │ • Text Area     │    │ • Event System  │    │ • UDP Text   │ │
+│  │ • Debug Panel   │    │ • Command Invoke│    │   Sharing    │ │
+│  │ • Peer Display  │    │ • Real-time     │    │ • Peer       │ │
+│  │ • Status Info   │    │   Updates       │    │   Discovery  │ │
 │  └─────────────────┘    └─────────────────┘    └──────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
                                 │
@@ -22,6 +27,10 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 │  ┌─────────────────┐    ┌─────────────────┐    ┌──────────────┐ │
 │  │   Broadcasting  │    │    Listening    │    │   Peer Mgmt  │ │
 │  │   (Port 7878)   │    │   (Port 7878)   │    │   (Registry) │ │
+│  │                 │    │                 │    │              │ │
+│  │ • Peer Discovery│    │ • Peer Discovery│    │ • Thread-safe│ │
+│  │ • Text Messages │    │ • Text Messages │    │   HashMap    │ │
+│  │ • 5s Intervals  │    │ • Event Emission│    │ • Auto Cleanup│ │
 │  └─────────────────┘    └─────────────────┘    └──────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -38,9 +47,10 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 │  │   index.html    │    │    main.js      │    │   style.css  │ │
 │  │                 │    │                 │    │              │ │
 │  │ • App Structure │    │ • Tauri API     │    │ • UI Styling │ │
-│  │ • Debug Panel   │    │ • WebSocket     │    │ • Responsive │ │
-│  │ • Text Area     │    │ • Peer Updates  │    │ • Modern UI  │ │
-│  │ • Status Display│    │ • Event Handlers│    │              │ │
+│  │ • Debug Panel   │    │ • Event Listeners│   │ • Responsive │ │
+│  │ • Text Area     │    │ • Text Input    │    │ • Modern UI  │ │
+│  │ • Status Display│    │ • Peer Updates  │    │ • Real-time  │ │
+│  │ • Peer List     │    │ • Error Handling│    │   Updates    │ │
 │  └─────────────────┘    └─────────────────┘    └──────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -58,9 +68,10 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 │  │ • get_peers()   │    │ • Serialization │    │ • get_peers  │ │
 │  │ • get_peer_count│    │ • Deserialization│   │ • get_peer_  │ │
 │  │ • get_peer_id() │    │ • Error Handling│    │   count      │ │
-│  │ • debug_peer_   │    │ • Type Safety   │    │ • get_peer_id│ │
-│  │   structure()   │    │                 │    │ • debug_peer_│ │
-│  └─────────────────┘    └─────────────────┘    └   structure  ┘ │
+│  │ • send_text_to_ │    │ • Type Safety   │    │ • get_peer_id│ │
+│  │   all_peers()   │    │ • Event System  │    │ • send_text_ │ │
+│  │ • Event Listen  │    │ • Real-time     │    │   to_all_    │ │
+│  └─────────────────┘    └─────────────────┘    └   peers      ┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -77,8 +88,8 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 │  │ • Tauri Setup   │    │ • UDP Broadcast │    │   State      │ │
 │  │ • Command       │    │ • UDP Listen    │    │ • Service    │ │
 │  │   Handlers      │    │ • Peer Registry │    │   Management│ │
-│  │ • Service       │    │ • Cleanup Tasks │    │ • Thread     │ │
-│  │   Initialization│    │ • Message       │    │   Safety     │ │
+│  │ • Text Sharing  │    │ • Cleanup Tasks │    │ • Thread     │ │
+│  │ • Event Emission│    │ • Message       │    │   Safety     │ │
 │  │                 │    │   Handling      │    │              │ │
 │  └─────────────────┘    └─────────────────┘    └──────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
@@ -114,9 +125,43 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 │  │   intervals     │    │   incoming      │    │ • Port       │ │
 │  │ • JSON messages │    │   messages      │    │ • Hostname   │ │
 │  │ • Broadcast     │    │ • Ignores own   │    │ • Timestamp  │ │
-│  │   address       │    │   messages      │    │              │ │
+│  │   address       │    │   messages      │    │ • Text Data  │ │
 │  └─────────────────┘    └─────────────────┘    └──────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
+```
+
+### Text Sharing Flow
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   User      │───►│  Frontend   │───►│   Backend   │───►│   UDP       │
+│   Input     │    │  (main.js)  │    │  (main.rs)  │    │   Network   │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+       │                   │                   │                   │
+       ▼                   ▼                   ▼                   ▼
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│ Text Area   │    │ invoke()    │    │ send_text_  │    │ UDP Packet  │
+│ Change      │    │ Call        │    │ to_all_     │    │ to Port     │
+│ Event       │    │             │    │ peers()     │    │ 7878        │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+                                                              │
+                                                              ▼
+                                                    ┌─────────────┐
+                                                    │ Receiving   │
+                                                    │ Peer        │
+                                                    └─────────────┘
+                                                              │
+                                                              ▼
+                                                    ┌─────────────┐
+                                                    │ Event       │
+                                                    │ Emission    │
+                                                    └─────────────┘
+                                                              │
+                                                              ▼
+                                                    ┌─────────────┐
+                                                    │ Frontend    │
+                                                    │ Update      │
+                                                    └─────────────┘
 ```
 
 ### Network Communication Flow
@@ -196,7 +241,7 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
 ```
 
-### 3. Frontend-Backend Communication Flow
+### 3. Text Sharing Flow
 
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
@@ -206,22 +251,27 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
        │                   │                   │                   │
        ▼                   ▼                   ▼                   ▼
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│ invoke()    │    │ Serialize   │    │ get_peers() │    │ Peer        │
-│ Call        │    │ Request     │    │ get_peer_   │    │ Registry    │
-│             │    │             │    │ count()     │    │ Query       │
+│ Text Input  │    │ Serialize   │    │ send_text_  │    │ UDP Send    │
+│ Event       │    │ Request     │    │ to_all_     │    │ to Peers    │
+│             │    │             │    │ peers()     │    │ (Port 7878) │
 └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
                                                               │
                                                               ▼
                                                     ┌─────────────┐
-                                                    │ Return      │
-                                                    │ Peer Data   │
+                                                    │ UDP Receive │
+                                                    │ (Port 7878) │
                                                     └─────────────┘
                                                               │
                                                               ▼
                                                     ┌─────────────┐
-                                                    │ Update UI   │
-                                                    │ (Debug      │
-                                                    │  Panel)     │
+                                                    │ Event       │
+                                                    │ Emission    │
+                                                    └─────────────┘
+                                                              │
+                                                              ▼
+                                                    ┌─────────────┐
+                                                    │ Frontend    │
+                                                    │ Update      │
                                                     └─────────────┘
 ```
 
@@ -246,7 +296,7 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 ### Network Protocol
 
 #### UDP Discovery Protocol
-- **Port**: 7878
+- **Port**: 7878 (for both discovery and text sharing)
 - **Broadcast Interval**: 5 seconds
 - **Peer Timeout**: 30 seconds
 - **Cleanup Interval**: 10 seconds
@@ -254,10 +304,12 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 
 ```json
 {
+  "message_type": "PeerDiscovery|TextMessage",
   "peer_id": "uuid-string",
-  "port": 8080,
+  "port": 7878,
   "hostname": "optional-hostname",
-  "timestamp": "ISO-8601-timestamp"
+  "timestamp": "ISO-8601-timestamp",
+  "text": "optional-text-content"
 }
 ```
 
@@ -274,8 +326,9 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 │  │ • UI Updates    │    │ • 5s Intervals  │    │ • Message    │ │
 │  │ • Command       │    │ • JSON Messages │    │   Processing │ │
 │  │   Handling      │    │ • Error Handling│    │ • Peer       │ │
-│  │ • State Mgmt    │    │                 │    │   Registry   │ │
-│  └─────────────────┘    └─────────────────┘    └──────────────┘ │
+│  │ • State Mgmt    │    │ • Text Messages │    │   Registry   │ │
+│  │ • Event Emission│    │                 │    │ • Event      │ │
+│  └─────────────────┘    └─────────────────┘    └   Emission  ┘ │
 │           │                       │                       │      │
 │           └───────────────────────┼───────────────────────┘      │
 │                                   │                              │
@@ -311,11 +364,11 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 #### Current Implementation
 - **Local Network Only**: UDP broadcast limited to local network
 - **No Authentication**: Trusts local network peers
-- **No Encryption**: Discovery messages are plain text
+- **No Encryption**: Discovery and text messages are plain text
 - **UUID-based IDs**: Random peer identification
 
 #### Future Enhancements
-- **Message Encryption**: End-to-end encryption for file transfers
+- **Message Encryption**: End-to-end encryption for text and file transfers
 - **Peer Authentication**: Certificate-based peer verification
 - **Network Isolation**: VLAN support for enterprise environments
 - **Access Control**: User-defined peer whitelisting
@@ -352,6 +405,7 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 
 ### Network Performance
 - **Discovery Latency**: < 5 seconds
+- **Text Sync Latency**: < 1 second
 - **Peer Timeout**: 30 seconds
 - **Broadcast Overhead**: Minimal (JSON messages)
 - **Memory Usage**: Low (peer registry only)
@@ -361,6 +415,26 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 - **Memory Footprint**: < 50MB
 - **CPU Usage**: < 1% (idle)
 - **Disk Usage**: < 10MB
+
+## Current Features
+
+### ✅ Implemented
+- **UDP Peer Discovery**: Automatic discovery of peers on local network
+- **Real-time Text Sharing**: Instant text synchronization between peers
+- **Cross-platform Support**: Windows, macOS, and Linux
+- **Automatic Cleanup**: Stale peer removal
+- **Debug Interface**: Real-time peer information display
+- **Event-driven Architecture**: Real-time updates via Tauri events
+
+### 🚧 In Progress
+- **File Transfer**: Basic file sharing capabilities
+- **UI Improvements**: Enhanced user interface
+
+### 📋 Planned
+- **Encrypted Communication**: End-to-end encryption
+- **File Transfer**: Complete file sharing implementation
+- **Clipboard Sync**: Cross-device clipboard synchronization
+- **Mobile Companion**: iOS/Android companion apps
 
 ## Future Architecture Considerations
 

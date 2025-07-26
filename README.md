@@ -5,6 +5,7 @@ A peer-to-peer file sharing application built with Tauri (now using Tauri 2.x) a
 ## Features
 
 - **UDP Peer Discovery**: Automatically discover other LanShare instances on the local network
+- **Real-time Text Sharing**: Instant text synchronization between discovered peers
 - **Real-time Peer Management**: Maintain an up-to-date list of available peers
 - **Automatic Cleanup**: Remove stale peers that haven't been seen for 30 seconds
 - **Cross-platform**: Works on Windows, macOS, and Linux
@@ -36,6 +37,17 @@ The application exposes the following Tauri commands for the frontend:
 - `get_peers()`: Returns a list of all discovered peers
 - `get_peer_count()`: Returns the number of discovered peers
 - `get_peer_id()`: Returns the current peer's ID
+- `send_text_to_all_peers(text)`: Sends text to all discovered peers
+- `send_text_to_peer(peer_id, text)`: Sends text to a specific peer
+
+## Text Sharing
+
+LanShare now supports real-time text sharing between peers:
+
+- **Instant Sync**: Text typed in one instance appears in all other instances
+- **UDP-based**: Uses the same UDP infrastructure as peer discovery
+- **Cross-platform**: Works seamlessly between Windows, macOS, and Linux
+- **Event-driven**: Real-time updates via Tauri's event system
 
 ## Architecture
 
@@ -168,7 +180,7 @@ RUST_LOG=debug cargo test
 
 - **Broadcast Interval**: 5 seconds (configurable)
 - **Peer Timeout**: 30 seconds (configurable)
-- **UDP Port**: 7878 (configurable)
+- **UDP Port**: 7878 (for both discovery and text sharing)
 - **Cleanup Interval**: 10 seconds (configurable)
 
 ### Logging
@@ -183,13 +195,13 @@ RUST_LOG=warn cargo tauri dev
 
 ## Network Requirements
 
-- UDP port 7878 must be open for discovery
+- UDP port 7878 must be open for discovery and text sharing
 - Network must support UDP broadcast
 - Firewall should allow UDP traffic on port 7878
 
 ## Security Considerations
 
-- Discovery messages are not encrypted (for local network use)
+- Discovery and text messages are not encrypted (for local network use)
 - Peer IDs are randomly generated UUIDs
 - No authentication mechanism (trusts local network)
 - Consider implementing encryption for production use
@@ -199,20 +211,28 @@ RUST_LOG=warn cargo tauri dev
 - The app now includes a comprehensive set of icons for Windows, macOS, Linux, Android, and iOS.
 - Icons are located in `src-tauri/icons/` and are automatically bundled for all platforms.
 
-## Future Enhancements
+## Current Status
 
-- [ ] Encrypted discovery messages
-- [ ] Peer authentication
-- [ ] Custom network interfaces
-- [ ] Discovery over multiple networks
-- [ ] Peer status indicators
-- [ ] Manual peer addition
-- [ ] Add file sharing capabilities
-- [ ] Implement encryption for secure sharing
-- [ ] Add clipboard sync
-- [ ] Create mobile companion app
-- [ ] Add user authentication
-- [ ] Implement persistent storage
+### ✅ Implemented Features
+- **UDP Peer Discovery**: Automatic discovery of peers on local network
+- **Real-time Text Sharing**: Instant text synchronization between peers
+- **Cross-platform Support**: Windows, macOS, and Linux
+- **Automatic Cleanup**: Stale peer removal
+- **Debug Interface**: Real-time peer information display
+- **Event-driven Architecture**: Real-time updates via Tauri events
+
+### 🚧 In Progress
+- **File Transfer**: Basic file sharing capabilities
+- **UI Improvements**: Enhanced user interface
+
+### 📋 Planned Features
+- **Encrypted Communication**: End-to-end encryption for text and files
+- **File Transfer**: Complete file sharing implementation
+- **Clipboard Sync**: Cross-device clipboard synchronization
+- **Mobile Companion**: iOS/Android companion apps
+- **Peer Authentication**: Certificate-based peer verification
+- **Custom Network Interfaces**: Support for multiple network interfaces
+- **Persistent Storage**: Save and restore application state
 
 ## Getting Started
 
@@ -252,16 +272,28 @@ RUST_LOG=warn cargo tauri dev
    cargo tauri build
    ```
 
+### Testing Text Sharing
+
+1. Run LanShare on two different machines on the same network
+2. Wait for peer discovery (should see each other in the debug panel)
+3. Type text in the textarea on one machine
+4. The text should appear in the textarea on the other machine
+
 ## Project Structure
 ```
 LanShare/
-├── src/                 # Rust backend (Tauri)
 ├── src-tauri/           # Tauri-specific configuration
 │   ├── src/
-│   │   └── main.rs      # Tauri main entry point
+│   │   ├── main.rs      # Tauri main entry point
+│   │   └── discovery.rs # UDP discovery and text sharing
 │   ├── Cargo.toml       # Tauri dependencies
-│   └── tauri.conf.json  # Tauri configuration
-├── Cargo.toml           # Main Rust dependencies
+│   ├── tauri.conf.json  # Tauri configuration
+│   └── capabilities/    # Tauri 2.x permissions
+├── dist/                # Frontend files
+│   ├── index.html       # Main HTML file
+│   ├── main.js          # Frontend JavaScript
+│   └── style.css        # Styling
+├── ARCHITECTURE.md      # Detailed architecture documentation
 └── README.md            # This file
 ```
 
