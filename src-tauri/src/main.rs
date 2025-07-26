@@ -6,109 +6,18 @@ use std::time::Duration;
 use tauri::Manager;
 use log::{info, error};
 use anyhow::Result;
-use tokio::sync::broadcast;
-use tokio_tungstenite::accept_async;
-use tokio_tungstenite::tungstenite::Message;
-use futures_util::{SinkExt, StreamExt};
+
 
 mod discovery;
 use discovery::{DiscoveryService, PeerRegistry};
 
 // WebSocket server for text sharing
-struct WebSocketServer {
-    tx: broadcast::Sender<String>,
-}
 
-impl WebSocketServer {
-    fn new() -> Self {
-        let (tx, _) = broadcast::channel::<String>(100);
-        Self { tx }
-    }
-
-    async fn start(&self) -> Result<()> {
-        let addr = "127.0.0.1:9001";
-        let listener = tokio::net::TcpListener::bind(addr).await?;
-        info!("WebSocket server listening on {}", addr);
-
-        let tx = self.tx.clone();
-        
-        tokio::spawn(async move {
-            while let Ok((stream, addr)) = listener.accept().await {
-                info!("New WebSocket connection from: {}", addr);
-                
-                let tx = tx.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = Self::handle_connection(stream, tx).await {
-                        error!("WebSocket connection error: {}", e);
-                    }
-                });
-            }
-        });
-
-        Ok(())
-    }
-
-    async fn handle_connection(
-        stream: tokio::net::TcpStream,
-        tx: broadcast::Sender<String>,
-    ) -> Result<()> {
-        let ws_stream = accept_async(stream).await?;
-        let (mut ws_sender, mut ws_receiver) = ws_stream.split();
-        
-        let mut rx = tx.subscribe();
-
-        // Handle incoming messages
-        let tx_clone = tx.clone();
-        let receive_task = tokio::spawn(async move {
-            while let Some(msg) = ws_receiver.next().await {
-                match msg {
-                    Ok(Message::Text(text)) => {
-                        info!("Received text message: {}", text);
-                        // Broadcast to all connected clients
-                        if let Err(e) = tx_clone.send(text) {
-                            error!("Failed to broadcast message: {}", e);
-                        }
-                    }
-                    Ok(Message::Close(_)) => {
-                        info!("WebSocket connection closed");
-                        break;
-                    }
-                    Err(e) => {
-                        error!("WebSocket error: {}", e);
-                        break;
-                    }
-                    _ => {}
-                }
-            }
-        });
-
-        // Handle outgoing messages
-        let send_task = tokio::spawn(async move {
-            while let Ok(msg) = rx.recv().await {
-                if let Err(e) = ws_sender.send(Message::Text(msg)).await {
-                    error!("Failed to send message: {}", e);
-                    break;
-                }
-            }
-        });
-
-        // Wait for either task to complete
-        tokio::select! {
-            _ = receive_task => {},
-            _ = send_task => {},
-        }
-
-        Ok(())
-    }
-
-
-}
 
 /// Global state for the application
 struct AppState {
     discovery_service: Arc<tokio::sync::Mutex<Option<DiscoveryService>>>,
     peer_registry: Arc<PeerRegistry>,
-    websocket_server: Arc<tokio::sync::Mutex<Option<WebSocketServer>>>,
 }
 
 #[tauri::command]
@@ -137,6 +46,65 @@ async fn debug_peer_structure(state: tauri::State<'_, AppState>) -> Result<Strin
     }
 }
 
+#[tauri::command]
+async fn send_text_to_peer(state: tauri::State<'_, AppState>, peer_id: String, text: String) -> Result<(), String> {
+    let peers = state.peer_registry.get_peers().await;
+    
+    if let Some(_peer) = peers.iter().find(|p| p.id == peer_id) {
+        let discovery_service = state.discovery_service.lock().await;
+        if let Some(ds) = discovery_service.as_ref() {
+            // Create text message
+            let message = discovery::DiscoveryMessage {
+                message_type: discovery::MessageType::TextMessage,
+                peer_id: ds.peer_id().unwrap_or_default(),
+                port: 8080,
+                hostname: None,
+                timestamp: chrono::Utc::now(),
+                text: Some(text.clone()),
+            };
+            
+            // Send to specific peer
+            if let Ok(_message_bytes) = serde_json::to_vec(&message) {
+                // TODO: Send UDP message to peer
+                info!("Sending text to peer {}: {}", peer_id, text);
+            }
+        }
+        Ok(())
+    } else {
+        Err(format!("Peer {} not found", peer_id))
+    }
+}
+
+#[tauri::command]
+async fn send_text_to_all_peers(state: tauri::State<'_, AppState>, text: String) -> Result<(), String> {
+    let peers = state.peer_registry.get_peers().await;
+    
+    if peers.is_empty() {
+        return Err("No peers available".to_string());
+    }
+    
+    let discovery_service = state.discovery_service.lock().await;
+    if let Some(ds) = discovery_service.as_ref() {
+        // Create text message
+        let message = discovery::DiscoveryMessage {
+            message_type: discovery::MessageType::TextMessage,
+            peer_id: ds.peer_id().unwrap_or_default(),
+            port: 8080,
+            hostname: None,
+            timestamp: chrono::Utc::now(),
+            text: Some(text.clone()),
+        };
+        
+        // Send to all peers
+        if let Ok(_message_bytes) = serde_json::to_vec(&message) {
+            // TODO: Broadcast UDP message to all peers
+            info!("Broadcasting text to all peers: {}", text);
+        }
+    }
+    
+    Ok(())
+}
+
 fn main() -> Result<()> {
     // Initialize logging
     env_logger::init();
@@ -147,13 +115,9 @@ fn main() -> Result<()> {
     let discovery_service = DiscoveryService::new(Duration::from_secs(30)); // 30 second timeout
     let peer_registry = discovery_service.registry();
     
-    // Create the WebSocket server
-    let websocket_server = WebSocketServer::new();
-    
     let app_state = AppState {
         discovery_service: Arc::new(tokio::sync::Mutex::new(Some(discovery_service))),
         peer_registry,
-        websocket_server: Arc::new(tokio::sync::Mutex::new(Some(websocket_server))),
     };
 
     tauri::Builder::default()
@@ -162,24 +126,15 @@ fn main() -> Result<()> {
             get_peers,
             get_peer_count,
             get_peer_id,
-            debug_peer_structure
+            debug_peer_structure,
+            send_text_to_peer,
+            send_text_to_all_peers
         ])
         .setup(|app| {
             let discovery_service = app.state::<AppState>().discovery_service.clone();
-            let websocket_server = app.state::<AppState>().websocket_server.clone();
             
-            // Start the discovery service and WebSocket server in background tasks
+            // Start the discovery service in background tasks
             tauri::async_runtime::spawn(async move {
-                // Start WebSocket server
-                let ws_server_guard = websocket_server.lock().await;
-                if let Some(ref ws_server) = *ws_server_guard {
-                    if let Err(e) = ws_server.start().await {
-                        error!("Failed to start WebSocket server: {}", e);
-                    } else {
-                        info!("WebSocket server started successfully");
-                    }
-                }
-                
                 // Start the discovery service
                 let mut discovery_service_guard = discovery_service.lock().await;
                 if let Some(ref mut ds) = *discovery_service_guard {

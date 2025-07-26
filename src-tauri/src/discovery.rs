@@ -48,11 +48,19 @@ impl Peer {
 
 /// Message format for UDP broadcasts
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MessageType {
+    PeerDiscovery,
+    TextMessage,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiscoveryMessage {
+    pub message_type: MessageType,
     pub peer_id: String,
     pub port: u16,
     pub hostname: Option<String>,
     pub timestamp: DateTime<Utc>,
+    pub text: Option<String>, // For text messages
 }
 
 /// Registry for managing discovered peers
@@ -190,10 +198,12 @@ impl UdpBroadcaster {
             interval.tick().await;
             
             let message = DiscoveryMessage {
+                message_type: MessageType::PeerDiscovery,
                 peer_id: self.peer_id.clone(),
                 port: self.port,
                 hostname: self.hostname.clone(),
                 timestamp: Utc::now(),
+                text: None,
             };
 
             let message_bytes = serde_json::to_vec(&message)
@@ -267,14 +277,24 @@ impl UdpListener {
             return Ok(());
         }
 
-        let peer = Peer::new(
-            message.peer_id,
-            src_addr.ip(),
-            message.port,
-            message.hostname,
-        );
+        match message.message_type {
+            MessageType::PeerDiscovery => {
+                let peer = Peer::new(
+                    message.peer_id,
+                    src_addr.ip(),
+                    message.port,
+                    message.hostname,
+                );
+                self.registry.add_peer(peer).await;
+            }
+            MessageType::TextMessage => {
+                if let Some(text) = message.text {
+                    info!("Received text message from {}: {}", message.peer_id, text);
+                    // TODO: Handle text message (emit to frontend)
+                }
+            }
+        }
 
-        self.registry.add_peer(peer).await;
         Ok(())
     }
 }
@@ -338,12 +358,14 @@ impl DiscoveryService {
             info!("Starting UDP broadcast on port 7878 with peer ID: {}", broadcaster.get_peer_id());
             loop {
                 interval.tick().await;
-                let message = DiscoveryMessage {
-                    peer_id: broadcaster.get_peer_id().to_string(),
-                    port: broadcaster.port,
-                    hostname: broadcaster.hostname.clone(),
-                    timestamp: Utc::now(),
-                };
+                            let message = DiscoveryMessage {
+                message_type: MessageType::PeerDiscovery,
+                peer_id: broadcaster.get_peer_id().to_string(),
+                port: broadcaster.port,
+                hostname: broadcaster.hostname.clone(),
+                timestamp: Utc::now(),
+                text: None,
+            };
                 let message_bytes = match serde_json::to_vec(&message) {
                     Ok(bytes) => bytes,
                     Err(e) => {
@@ -425,14 +447,24 @@ impl DiscoveryService {
             return Ok(());
         }
 
-        let peer = Peer::new(
-            message.peer_id,
-            src_addr.ip(),
-            message.port,
-            message.hostname,
-        );
+        match message.message_type {
+            MessageType::PeerDiscovery => {
+                let peer = Peer::new(
+                    message.peer_id,
+                    src_addr.ip(),
+                    message.port,
+                    message.hostname,
+                );
+                registry.add_peer(peer).await;
+            }
+            MessageType::TextMessage => {
+                if let Some(text) = message.text {
+                    info!("Received text message from {}: {}", message.peer_id, text);
+                    // TODO: Handle text message (emit to frontend)
+                }
+            }
+        }
 
-        registry.add_peer(peer).await;
         Ok(())
     }
 

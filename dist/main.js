@@ -1,6 +1,5 @@
 // Tauri API references
 let invoke, appWindow, fs, dialog, notification, os;
-let ws;
 
 const statusText = document.getElementById('status-text');
 const textarea = document.getElementById('main-text');
@@ -105,47 +104,7 @@ function debugWindowAPIs() {
 }
 
 // WebSocket connection with retry logic (unchanged)
-function connectWebSocket(retryCount = 0) {
-    const maxRetries = 5;
-    const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 10000);
-    
-    try {
-        ws = new WebSocket('ws://localhost:9001');
-        
-        ws.onopen = () => {
-            setStatus('Connected', '#38a169');
-            console.log('WebSocket connected');
-        };
-        
-        ws.onclose = (event) => {
-            setStatus('Disconnected', '#e53e3e');
-            console.log('WebSocket disconnected:', event.code, event.reason);
-            
-            if (event.code !== 1000 && retryCount < maxRetries) {
-                console.log(`Retrying connection in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
-                setTimeout(() => connectWebSocket(retryCount + 1), retryDelay);
-            } else if (retryCount >= maxRetries) {
-                setStatus('Connection failed - Max retries reached', '#e53e3e');
-            }
-        };
-        
-        ws.onerror = (error) => {
-            setStatus('Connection Error', '#e53e3e');
-            console.error('WebSocket error:', error);
-        };
-        
-        ws.onmessage = (event) => {
-            console.log('Received message:', event.data);
-            if (event.data !== textarea.value) {
-                textarea.value = event.data;
-            }
-        };
-        
-    } catch (error) {
-        console.error('Failed to create WebSocket:', error);
-        setStatus('WebSocket Creation Failed', '#e53e3e');
-    }
-}
+
 
 // Enhanced debug function matching your Rust command signatures
 async function debugTauriCommands() {
@@ -270,12 +229,21 @@ function setupTextAreaHandler() {
         return;
     }
     
-    textarea.addEventListener('input', () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(textarea.value);
-            console.log('Sent message:', textarea.value);
-        } else {
-            console.warn('WebSocket not connected, cannot send message');
+    let lastText = '';
+    textarea.addEventListener('input', async () => {
+        const currentText = textarea.value;
+        
+        // Only send if text has changed and we have Tauri APIs
+        if (currentText !== lastText && invoke) {
+            lastText = currentText;
+            
+            try {
+                // Send text to all discovered peers
+                await invoke('send_text_to_all_peers', { text: currentText });
+                console.log('Sent text to all peers:', currentText);
+            } catch (error) {
+                console.error('Failed to send text:', error);
+            }
         }
     });
 }
@@ -296,9 +264,8 @@ async function initializeApp() {
         // Setup event handlers
         setupTextAreaHandler();
         
-        // Connect WebSocket
-        setStatus('Connecting to WebSocket...');
-        connectWebSocket();
+        // Text sharing is now handled via UDP
+        setStatus('Ready for text sharing...');
         
         // Test Tauri commands after initialization
         setTimeout(() => {
@@ -325,11 +292,6 @@ if (document.readyState !== 'loading') {
 // Global functions
 window.debugLanShare = debugTauriCommands;
 window.debugWindowAPIs = debugWindowAPIs;
-window.reconnectWebSocket = () => {
-    if (ws) ws.close();
-    setStatus('Reconnecting...');
-    connectWebSocket();
-};
 
 // Add a function to test invoke directly
 window.testInvoke = async () => {
