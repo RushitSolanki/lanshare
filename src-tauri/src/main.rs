@@ -129,18 +129,14 @@ async fn send_text_to_all_peers(state: tauri::State<'_, AppState>, text: String)
 fn main() -> Result<()> {
     // Initialize logging
     env_logger::init();
-    
     info!("Starting LanShare application...");
-
     // Create the discovery service
     let discovery_service = DiscoveryService::new(Duration::from_secs(30)); // 30 second timeout
     let peer_registry = discovery_service.registry();
-    
     let app_state = AppState {
         discovery_service: Arc::new(tokio::sync::Mutex::new(Some(discovery_service))),
         peer_registry,
     };
-
     tauri::Builder::default()
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
@@ -153,34 +149,25 @@ fn main() -> Result<()> {
         ])
         .setup(|app| {
             let discovery_service = app.state::<AppState>().discovery_service.clone();
-            
-            // Start the discovery service in background tasks
-            tauri::async_runtime::spawn(async move {
-                // Start the discovery service
+            let app_handle = app.app_handle();
+            tauri::async_runtime::block_on(async move {
                 let mut discovery_service_guard = discovery_service.lock().await;
                 if let Some(ref mut ds) = *discovery_service_guard {
-                    // Initialize the discovery service
+                    ds.app_handle = Some(app_handle.clone());
                     match ds.start(8080).await {
                         Ok(()) => {
                             info!("Discovery service initialized successfully");
-                            
-                            // Get the peer ID for spawning tasks
                             if let Some(peer_id) = ds.peer_id() {
-                                // Spawn the broadcaster task
                                 if let Ok(_broadcaster_handle) = ds.get_broadcaster_task(8080) {
                                     info!("Broadcaster task spawned");
                                 } else {
                                     error!("Failed to spawn broadcaster task");
                                 }
-                                
-                                // Spawn the listener task
                                 if let Ok(_listener_handle) = ds.get_listener_task(peer_id.clone()) {
                                     info!("Listener task spawned");
                                 } else {
                                     error!("Failed to spawn listener task");
                                 }
-                                
-                                // Spawn the cleanup task
                                 let _cleanup_handle = ds.get_cleanup_task();
                                 info!("Cleanup task spawned");
                             }
@@ -191,11 +178,9 @@ fn main() -> Result<()> {
                     }
                 }
             });
-
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-
     Ok(())
 } 

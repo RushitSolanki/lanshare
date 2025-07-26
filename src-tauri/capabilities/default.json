@@ -1,0 +1,16 @@
+{
+    "identifier": "default",
+    "description": "Default capabilities for LanShare",
+    "permissions": [
+      "core:event:allow-listen",
+      "core:event:allow-emit"
+    ],
+    "windows": ["main"],
+    "allowlist": {
+      "event": {
+        "all": true,
+        "listen": ["text-received"],
+        "emit": ["text-received"]
+      }
+    }
+  }

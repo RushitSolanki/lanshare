@@ -11,6 +11,8 @@ use tokio::net::UdpSocket;
 use tokio::sync::RwLock;
 use tokio::time::{interval, sleep};
 use uuid::Uuid;
+use tauri::AppHandle;
+use tauri::Emitter;
 
 /// Represents a discovered peer on the network
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -303,6 +305,7 @@ impl UdpListener {
 pub struct DiscoveryService {
     registry: Arc<PeerRegistry>,
     peer_id: Option<String>,
+    pub app_handle: Option<AppHandle>,
 }
 
 impl DiscoveryService {
@@ -310,6 +313,7 @@ impl DiscoveryService {
         Self {
             registry: Arc::new(PeerRegistry::new(timeout_duration)),
             peer_id: None,
+            app_handle: None,
         }
     }
 
@@ -388,6 +392,7 @@ impl DiscoveryService {
     /// Get the listener task for spawning
     pub fn get_listener_task(&self, own_peer_id: String) -> Result<tokio::task::JoinHandle<()>> {
         let registry = self.registry.clone();
+        let app_handle = self.app_handle.clone();
         let listener = UdpListener::new(registry.clone(), own_peer_id.clone());
         
         Ok(tokio::spawn(async move {
@@ -404,10 +409,11 @@ impl DiscoveryService {
                     Ok((len, src_addr)) => {
                         let message_bytes = &buf[..len];
                         if let Err(e) = Self::handle_listener_message(
-                            message_bytes, 
-                            src_addr, 
-                            &registry, 
-                            &own_peer_id
+                            message_bytes,
+                            src_addr,
+                            &registry,
+                            &own_peer_id,
+                            app_handle.clone(),
                         ).await {
                             error!("Failed to handle discovery message: {}", e);
                         }
@@ -434,19 +440,17 @@ impl DiscoveryService {
     }
 
     async fn handle_listener_message(
-        message_bytes: &[u8], 
-        src_addr: SocketAddr, 
-        registry: &Arc<PeerRegistry>, 
-        own_peer_id: &str
+        message_bytes: &[u8],
+        src_addr: SocketAddr,
+        registry: &Arc<PeerRegistry>,
+        own_peer_id: &str,
+        app_handle: Option<AppHandle>,
     ) -> Result<()> {
         let message: DiscoveryMessage = serde_json::from_slice(message_bytes)
             .context("Failed to deserialize discovery message")?;
-
-        // Ignore our own messages
         if message.peer_id == own_peer_id {
             return Ok(());
         }
-
         match message.message_type {
             MessageType::PeerDiscovery => {
                 let peer = Peer::new(
@@ -460,11 +464,12 @@ impl DiscoveryService {
             MessageType::TextMessage => {
                 if let Some(text) = message.text {
                     info!("Received text message from {}: {}", message.peer_id, text);
-                    // TODO: Handle text message (emit to frontend)
+                    if let Some(app) = app_handle {
+                        let _ = app.emit("text-received", text);
+                    }
                 }
             }
         }
-
         Ok(())
     }
 
