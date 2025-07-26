@@ -64,9 +64,18 @@ async fn send_text_to_peer(state: tauri::State<'_, AppState>, peer_id: String, t
             };
             
             // Send to specific peer
-            if let Ok(_message_bytes) = serde_json::to_vec(&message) {
-                // TODO: Send UDP message to peer
-                info!("Sending text to peer {}: {}", peer_id, text);
+            if let Ok(message_bytes) = serde_json::to_vec(&message) {
+                // Send UDP message to peer
+                if let Ok(socket) = tokio::net::UdpSocket::bind("0.0.0.0:0").await {
+                    let peer_addr = format!("{}:{}", _peer.ip, _peer.port);
+                    if let Ok(addr) = peer_addr.parse::<std::net::SocketAddr>() {
+                        if let Err(e) = socket.send_to(&message_bytes, addr).await {
+                            error!("Failed to send text to peer {}: {}", peer_id, e);
+                        } else {
+                            info!("Sent text to peer {}: {}", peer_id, text);
+                        }
+                    }
+                }
             }
         }
         Ok(())
@@ -96,9 +105,21 @@ async fn send_text_to_all_peers(state: tauri::State<'_, AppState>, text: String)
         };
         
         // Send to all peers
-        if let Ok(_message_bytes) = serde_json::to_vec(&message) {
-            // TODO: Broadcast UDP message to all peers
-            info!("Broadcasting text to all peers: {}", text);
+        if let Ok(message_bytes) = serde_json::to_vec(&message) {
+            // Broadcast UDP message to all peers
+            if let Ok(socket) = tokio::net::UdpSocket::bind("0.0.0.0:0").await {
+                for peer in peers {
+                    let peer_addr = format!("{}:{}", peer.ip, peer.port);
+                    if let Ok(addr) = peer_addr.parse::<std::net::SocketAddr>() {
+                        if let Err(e) = socket.send_to(&message_bytes, addr).await {
+                            error!("Failed to send text to peer {}: {}", peer.id, e);
+                        } else {
+                            info!("Sent text to peer {}: {}", peer.id, text);
+                        }
+                    }
+                }
+                info!("Broadcasted text to all peers: {}", text);
+            }
         }
     }
     
