@@ -101,10 +101,7 @@ impl WebSocketServer {
         Ok(())
     }
 
-    fn broadcast_message(&self, message: String) -> Result<()> {
-        self.tx.send(message)?;
-        Ok(())
-    }
+
 }
 
 /// Global state for the application
