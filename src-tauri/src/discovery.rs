@@ -529,7 +529,7 @@ mod tests {
         let peer = Peer::new(
             "test-id".to_string(),
             IpAddr::V4(Ipv4Addr::new(192, 168, 1, 100)),
-            8080,
+            7878,
             Some("test-host".to_string()),
         );
 
@@ -551,7 +551,7 @@ mod tests {
         let mut peer = Peer::new(
             "test-id".to_string(),
             IpAddr::V4(Ipv4Addr::new(192, 168, 1, 100)),
-            8080,
+            7878,
             None,
         );
 

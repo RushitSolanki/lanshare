@@ -155,11 +155,11 @@ fn main() -> Result<()> {
                 let mut discovery_service_guard = discovery_service.lock().await;
                 if let Some(ref mut ds) = *discovery_service_guard {
                     ds.app_handle = Some(app_handle.clone());
-                    match ds.start(8080).await {
+                    match ds.start(7878).await {
                         Ok(()) => {
                             info!("Discovery service initialized successfully");
                             if let Some(peer_id) = ds.peer_id() {
-                                if let Ok(_broadcaster_handle) = ds.get_broadcaster_task(8080) {
+                                if let Ok(_broadcaster_handle) = ds.get_broadcaster_task(7878) {
                                     info!("Broadcaster task spawned");
                                 } else {
                                     error!("Failed to spawn broadcaster task");
