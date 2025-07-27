@@ -89,7 +89,8 @@ async fn send_text_to_all_peers(state: tauri::State<'_, AppState>, text: String)
     let peers = state.peer_registry.get_peers().await;
     
     if peers.is_empty() {
-        return Err("No peers available".to_string());
+        info!("No peers available to send text to: {}", text);
+        return Ok(()); // Return success instead of error
     }
     
     let discovery_service = state.discovery_service.lock().await;

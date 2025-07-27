@@ -241,8 +241,18 @@ function setupTextAreaHandler() {
                 // Send text to all discovered peers
                 await invoke('send_text_to_all_peers', { text: currentText });
                 console.log('Sent text to all peers:', currentText);
+                
+                // Check if there are any peers to send to
+                const peerCount = await invoke('get_peer_count');
+                if (peerCount === 0) {
+                    console.log('No peers available - text saved for when peers connect');
+                    setStatus('No peers available - text will be sent when peers connect', '#f6ad55');
+                } else {
+                    setStatus(`Text sent to ${peerCount} peer(s)`, '#38a169');
+                }
             } catch (error) {
                 console.error('Failed to send text:', error);
+                setStatus('Failed to send text', '#e53e3e');
             }
         }
     });
