@@ -132,7 +132,7 @@ fn main() -> Result<()> {
     env_logger::init();
     info!("Starting LanShare application...");
     // Create the discovery service
-    let discovery_service = DiscoveryService::new(Duration::from_secs(30)); // 30 second timeout
+    let discovery_service = DiscoveryService::new(Duration::from_secs(8)); // 8 second timeout for faster cleanup
     let peer_registry = discovery_service.registry();
     let app_state = AppState {
         discovery_service: Arc::new(tokio::sync::Mutex::new(Some(discovery_service))),

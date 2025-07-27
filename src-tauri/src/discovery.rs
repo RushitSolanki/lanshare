@@ -320,7 +320,7 @@ impl DiscoveryService {
     /// Start the discovery service
     pub async fn start(&mut self, port: u16) -> Result<()> {
         // Start the broadcaster
-        let _broadcaster = UdpBroadcaster::new(port, Duration::from_secs(5)).await?;
+        let _broadcaster = UdpBroadcaster::new(port, Duration::from_secs(2)).await?;
         let peer_id = _broadcaster.get_peer_id().to_string();
         
         // Store the peer ID
@@ -343,7 +343,7 @@ impl DiscoveryService {
             anyhow::anyhow!("Peer ID not available - call start() first")
         })?;
         
-        let broadcaster = UdpBroadcaster::new(port, Duration::from_secs(5));
+        let broadcaster = UdpBroadcaster::new(port, Duration::from_secs(2));
         
         Ok(tokio::spawn(async move {
             let broadcaster = match broadcaster.await {
@@ -431,7 +431,7 @@ impl DiscoveryService {
     pub fn get_cleanup_task(&self) -> tokio::task::JoinHandle<()> {
         let registry = self.registry.clone();
         tokio::spawn(async move {
-            let mut interval = interval(Duration::from_secs(10));
+            let mut interval = interval(Duration::from_secs(3));
             loop {
                 interval.tick().await;
                 registry.cleanup_stale_peers().await;

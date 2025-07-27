@@ -312,7 +312,7 @@ async function initializeApp() {
         }, 1000);
         
         // Set up periodic updates
-        setInterval(debugTauriCommands, 5000);
+        setInterval(debugTauriCommands, 2000);
         
     } catch (error) {
         console.error('Failed to initialize app:', error);
