@@ -17,7 +17,11 @@
         "minWidth": 900,
         "minHeight": 600,
         "maxWidth": 900,
-        "maxHeight": 600
+        "maxHeight": 600,
+        "maximizable": false,
+        "fullscreen": false,
+        "decorations": true,
+        "alwaysOnTop": false
       }
     ],
     "security": {
