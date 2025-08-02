@@ -11,9 +11,13 @@
     "windows": [
       {
         "title": "LanShare",
-        "width": 600,
-        "height": 500,
-        "resizable": true
+        "width": 900,
+        "height": 600,
+        "resizable": false,
+        "minWidth": 900,
+        "minHeight": 600,
+        "maxWidth": 900,
+        "maxHeight": 600
       }
     ],
     "security": {

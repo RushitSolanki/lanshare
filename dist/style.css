@@ -3,7 +3,8 @@ body {
   font-family: 'Inter', Arial, sans-serif;
   margin: 0;
   padding: 0;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 .container {
   max-width: 800px;
@@ -41,11 +42,12 @@ h1 {
   border: 1.5px solid #cbd5e1;
   border-radius: 8px;
   padding: 20px;
-  resize: vertical;
+  resize: none;
   background: #f9fafb;
   color: #2d3748;
   transition: border 0.2s;
   box-sizing: border-box;
+  overflow: auto;
 }
 #main-text:focus {
   border: 1.5px solid #3182ce;
