@@ -10,6 +10,17 @@ function setStatus(text, color = '#3182ce') {
     console.log(`Status: ${text}`);
 }
 
+// User-friendly status messages
+function setUserStatus(results) {
+    console.log('Debug info:', results);
+    
+    if (results.peerCount > 0) {
+        setStatus(`Connected to ${results.peerCount} peer(s)`, '#38a169');
+    } else {
+        setStatus('Searching for peers...', '#3182ce');
+    }
+}
+
 // Wait for Tauri APIs to be available (corrected for static setup)
 async function waitForTauri() {
     console.log('Waiting for Tauri APIs...');
@@ -179,47 +190,30 @@ async function debugTauriCommands() {
 function updateDebugPanel(results) {
     console.log('updateDebugPanel called with:', results);
     
-    const peerIdElement = document.getElementById('peer-id');
-    const peerCountElement = document.getElementById('peer-count');
-    const peersListElement = document.getElementById('peers-list');
+    // Log debug information to console
+    console.log('Peer ID:', results.peerId || 'Not available');
+    console.log('Peer Count:', results.peerCount.toString());
     
-    console.log('Found elements:', {
-        peerId: !!peerIdElement,
-        peerCount: !!peerCountElement,
-        peersList: !!peersListElement
-    });
-    
-    if (peerIdElement) {
-        peerIdElement.textContent = results.peerId || 'Not available';
-        console.log('Updated peer ID to:', results.peerId || 'Not available');
+    if (results.peers && results.peers.length > 0) {
+        const peerList = results.peers.map(peer => {
+            if (typeof peer === 'string') {
+                return peer;
+            } else if (peer.id && peer.hostname) {
+                return `${peer.id} (${peer.hostname})`;
+            } else if (peer.id) {
+                return peer.id;
+            } else {
+                return JSON.stringify(peer);
+            }
+        }).join(', ');
+        
+        console.log('Discovered Peers:', peerList);
+    } else {
+        console.log('No peers discovered');
     }
     
-    if (peerCountElement) {
-        peerCountElement.textContent = results.peerCount.toString();
-        console.log('Updated peer count to:', results.peerCount.toString());
-    }
-    
-    if (peersListElement) {
-        if (results.peers && results.peers.length > 0) {
-            const peerList = results.peers.map(peer => {
-                if (typeof peer === 'string') {
-                    return peer;
-                } else if (peer.id && peer.hostname) {
-                    return `${peer.id} (${peer.hostname})`;
-                } else if (peer.id) {
-                    return peer.id;
-                } else {
-                    return JSON.stringify(peer);
-                }
-            }).join(', ');
-            
-            peersListElement.textContent = peerList;
-            console.log('Updated peers list to:', peerList);
-        } else {
-            peersListElement.textContent = 'No peers discovered';
-            console.log('Updated peers list to: No peers discovered');
-        }
-    }
+    // Update user-friendly status
+    setUserStatus(results);
 }
 
 // Text area event handler
@@ -246,7 +240,7 @@ function setupTextAreaHandler() {
                 const peerCount = await invoke('get_peer_count');
                 if (peerCount === 0) {
                     console.log('No peers available - text saved for when peers connect');
-                    setStatus('No peers available - text will be sent when peers connect', '#f6ad55');
+                    setStatus('Text saved - will send when peers connect', '#f6ad55');
                 } else {
                     setStatus(`Text sent to ${peerCount} peer(s)`, '#38a169');
                 }
@@ -307,7 +301,7 @@ async function initializeApp() {
         
         // Test Tauri commands after initialization
         setTimeout(() => {
-            setStatus('Testing Tauri commands...');
+            console.log('Testing Tauri commands...');
             debugTauriCommands();
         }, 1000);
         
