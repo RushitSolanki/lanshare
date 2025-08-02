@@ -6,8 +6,9 @@ body {
   min-height: 100vh;
 }
 .container {
-  max-width: 500px;
-  margin: 60px auto;
+  max-width: 800px;
+  width: 90%;
+  margin: 40px auto;
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.08);
@@ -35,15 +36,16 @@ h1 {
 }
 #main-text {
   width: 100%;
-  min-height: 220px;
+  min-height: 300px;
   font-size: 1.1rem;
   border: 1.5px solid #cbd5e1;
   border-radius: 8px;
-  padding: 16px;
+  padding: 20px;
   resize: vertical;
   background: #f9fafb;
   color: #2d3748;
   transition: border 0.2s;
+  box-sizing: border-box;
 }
 #main-text:focus {
   border: 1.5px solid #3182ce;
