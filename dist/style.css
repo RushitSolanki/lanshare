@@ -35,6 +35,10 @@ h1 {
   font-weight: 600;
   color: #3182ce;
 }
+.textarea-container {
+  position: relative;
+  width: 100%;
+}
 #main-text {
   width: 100%;
   min-height: 300px;
@@ -42,6 +46,7 @@ h1 {
   border: 1.5px solid #cbd5e1;
   border-radius: 8px;
   padding: 20px;
+  padding-bottom: 50px;
   resize: none;
   background: #f9fafb;
   color: #2d3748;
@@ -53,4 +58,32 @@ h1 {
   border: 1.5px solid #3182ce;
   outline: none;
   background: #fff;
+}
+.copy-button {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: #3182ce;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  opacity: 0.8;
+}
+.copy-button:hover {
+  background: #2c5aa0;
+  opacity: 1;
+  transform: scale(1.05);
+}
+.copy-button:active {
+  transform: scale(0.95);
+}
+.copy-button.copied {
+  background: #38a169;
 }

@@ -3,11 +3,47 @@ let invoke, appWindow, fs, dialog, notification, os;
 
 const statusText = document.getElementById('status-text');
 const textarea = document.getElementById('main-text');
+const copyBtn = document.getElementById('copy-btn');
 
 function setStatus(text, color = '#3182ce') {
     statusText.textContent = text;
     statusText.style.color = color;
     console.log(`Status: ${text}`);
+}
+
+// Copy button functionality
+async function copyText() {
+    if (!textarea || !textarea.value.trim()) {
+        console.log('No text to copy');
+        return;
+    }
+    
+    try {
+        await navigator.clipboard.writeText(textarea.value);
+        
+        // Visual feedback
+        copyBtn.classList.add('copied');
+        copyBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20,6 9,17 4,12"></polyline>
+            </svg>
+        `;
+        
+        // Reset after 2 seconds
+        setTimeout(() => {
+            copyBtn.classList.remove('copied');
+            copyBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+            `;
+        }, 2000);
+        
+        console.log('Text copied to clipboard');
+    } catch (error) {
+        console.error('Failed to copy text:', error);
+    }
 }
 
 // User-friendly status messages
@@ -267,6 +303,11 @@ async function initializeApp() {
         
         // Setup event handlers
         setupTextAreaHandler();
+        
+        // Setup copy button
+        if (copyBtn) {
+            copyBtn.addEventListener('click', copyText);
+        }
 
         // Simple event listener setup with longer delay
         setTimeout(() => {
