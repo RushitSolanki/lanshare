@@ -367,12 +367,6 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 - **No Encryption**: Discovery and text messages are plain text
 - **UUID-based IDs**: Random peer identification
 
-#### Future Enhancements
-- **Message Encryption**: End-to-end encryption for text and file transfers
-- **Peer Authentication**: Certificate-based peer verification
-- **Network Isolation**: VLAN support for enterprise environments
-- **Access Control**: User-defined peer whitelisting
-
 ## Deployment Architecture
 
 ### Build Process
@@ -425,33 +419,3 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 - **Automatic Cleanup**: Stale peer removal
 - **Debug Interface**: Real-time peer information display
 - **Event-driven Architecture**: Real-time updates via Tauri events
-
-### 🚧 In Progress
-- **File Transfer**: Basic file sharing capabilities
-- **UI Improvements**: Enhanced user interface
-
-### 📋 Planned
-- **Encrypted Communication**: End-to-end encryption
-- **File Transfer**: Complete file sharing implementation
-- **Clipboard Sync**: Cross-device clipboard synchronization
-- **Mobile Companion**: iOS/Android companion apps
-
-## Future Architecture Considerations
-
-### Scalability
-- **Multi-Network Support**: Multiple network interface discovery
-- **Peer Clustering**: Hierarchical peer organization
-- **Load Balancing**: Distributed peer registry
-- **Caching**: Local peer information caching
-
-### Extensibility
-- **Plugin System**: Modular feature extensions
-- **API Gateway**: REST API for external integrations
-- **Web Interface**: Browser-based administration
-- **Mobile Support**: iOS/Android companion apps
-
-### Monitoring and Observability
-- **Metrics Collection**: Performance and usage metrics
-- **Health Checks**: Service availability monitoring
-- **Log Aggregation**: Centralized logging system
-- **Alerting**: Automated issue detection and notification 

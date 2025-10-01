@@ -1,6 +1,6 @@
 # LanShare
 
-A peer-to-peer file sharing application built with Tauri (now using Tauri 2.x) and Rust.
+A peer-to-peer text sharing application built with Tauri and Rust.
 
 ## Features
 
@@ -9,7 +9,6 @@ A peer-to-peer file sharing application built with Tauri (now using Tauri 2.x) a
 - **Real-time Peer Management**: Maintain an up-to-date list of available peers
 - **Automatic Cleanup**: Remove stale peers that haven't been seen for 30 seconds
 - **Cross-platform**: Works on Windows, macOS, and Linux
-- **Modern Icon Assets**: Updated and expanded icon set for all major platforms
 
 ## UDP Peer Discovery System
 
@@ -204,12 +203,6 @@ RUST_LOG=warn cargo tauri dev
 - Discovery and text messages are not encrypted (for local network use)
 - Peer IDs are randomly generated UUIDs
 - No authentication mechanism (trusts local network)
-- Consider implementing encryption for production use
-
-## Icon Assets
-
-- The app now includes a comprehensive set of icons for Windows, macOS, Linux, Android, and iOS.
-- Icons are located in `src-tauri/icons/` and are automatically bundled for all platforms.
 
 ## Current Status
 
@@ -220,19 +213,6 @@ RUST_LOG=warn cargo tauri dev
 - **Automatic Cleanup**: Stale peer removal
 - **Debug Interface**: Real-time peer information display
 - **Event-driven Architecture**: Real-time updates via Tauri events
-
-### 🚧 In Progress
-- **File Transfer**: Basic file sharing capabilities
-- **UI Improvements**: Enhanced user interface
-
-### 📋 Planned Features
-- **Encrypted Communication**: End-to-end encryption for text and files
-- **File Transfer**: Complete file sharing implementation
-- **Clipboard Sync**: Cross-device clipboard synchronization
-- **Mobile Companion**: iOS/Android companion apps
-- **Peer Authentication**: Certificate-based peer verification
-- **Custom Network Interfaces**: Support for multiple network interfaces
-- **Persistent Storage**: Save and restore application state
 
 ## Getting Started
 
