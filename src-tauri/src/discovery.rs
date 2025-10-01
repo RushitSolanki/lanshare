@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
+use get_if_addrs::{get_if_addrs, IfAddr};
 use tokio::net::UdpSocket;
 use tokio::sync::RwLock;
 use tokio::time::{interval, sleep};
@@ -192,7 +193,6 @@ impl UdpBroadcaster {
     #[allow(dead_code)]
     pub async fn start_broadcasting(&self) -> Result<()> {
         let mut interval = interval(self.broadcast_interval);
-        let broadcast_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), 7878);
 
         info!("Starting UDP broadcast on port 7878 with peer ID: {}", self.peer_id);
 
@@ -211,12 +211,15 @@ impl UdpBroadcaster {
             let message_bytes = serde_json::to_vec(&message)
                 .context("Failed to serialize discovery message")?;
 
-            match self.socket.send_to(&message_bytes, broadcast_addr).await {
-                Ok(_) => {
-                    debug!("Broadcasted presence message");
-                }
-                Err(e) => {
-                    error!("Failed to broadcast presence message: {}", e);
+            // Send to all interface broadcast addresses (robust on Windows with multiple adapters)
+            for addr in ipv4_broadcast_targets() {
+                match self.socket.send_to(&message_bytes, addr).await {
+                    Ok(_) => {
+                        debug!("Broadcasted presence message to {}", addr);
+                    }
+                    Err(e) => {
+                        error!("Failed to broadcast presence message to {}: {}", addr, e);
+                    }
                 }
             }
         }
@@ -358,11 +361,10 @@ impl DiscoveryService {
                 }
             };
             let mut interval = interval(broadcaster.broadcast_interval);
-            let broadcast_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), 7878);
             info!("Starting UDP broadcast on port 7878 with peer ID: {}", broadcaster.get_peer_id());
             loop {
                 interval.tick().await;
-                            let message = DiscoveryMessage {
+                let message = DiscoveryMessage {
                 message_type: MessageType::PeerDiscovery,
                 peer_id: broadcaster.get_peer_id().to_string(),
                 port: broadcaster.port,
@@ -377,12 +379,14 @@ impl DiscoveryService {
                         continue;
                     }
                 };
-                match broadcaster.socket.send_to(&message_bytes, broadcast_addr).await {
-                    Ok(_) => {
-                        debug!("Broadcasted presence message");
-                    }
-                    Err(e) => {
-                        error!("Failed to broadcast presence message: {}", e);
+                for addr in ipv4_broadcast_targets() {
+                    match broadcaster.socket.send_to(&message_bytes, addr).await {
+                        Ok(_) => {
+                            debug!("Broadcasted presence message to {}", addr);
+                        }
+                        Err(e) => {
+                            error!("Failed to broadcast presence message to {}: {}", addr, e);
+                        }
                     }
                 }
             }
@@ -503,6 +507,36 @@ impl DiscoveryService {
         self.peer_id = None;
         Ok(())
     }
+}
+
+/// Compute broadcast targets for all non-loopback IPv4 interfaces.
+fn ipv4_broadcast_targets() -> Vec<SocketAddr> {
+    let mut targets: Vec<SocketAddr> = Vec::new();
+    if let Ok(ifaces) = get_if_addrs() {
+        for iface in ifaces {
+            // Only consider IPv4 addresses
+            let (ip, mask, broadcast_opt) = match iface.addr {
+                IfAddr::V4(v4) => (v4.ip, v4.netmask, v4.broadcast),
+                _ => continue,
+            };
+            // Skip loopback and link-local 169.254.x.x
+            let oct0 = ip.octets()[0];
+            if ip.is_loopback() || oct0 == 169 { continue; }
+
+            let bcast = if let Some(b) = broadcast_opt { b } else {
+                let bcast_u32 = u32::from(ip) | !u32::from(mask);
+                Ipv4Addr::from(bcast_u32)
+            };
+            targets.push(SocketAddr::new(IpAddr::V4(bcast), 7878));
+        }
+    }
+    targets.sort();
+    targets.dedup();
+    // Always include 255.255.255.255 as a last resort
+    targets.push(SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), 7878));
+    targets.sort();
+    targets.dedup();
+    targets
 }
 
 // Helper function to get hostname
