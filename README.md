@@ -166,6 +166,7 @@ To create a Linux AppImage:
 
 ```bash
 # Run all tests
+cd src-tauri
 cargo test
 
 # Run tests with logging
