@@ -275,8 +275,8 @@ function setupTextAreaHandler() {
                 // Check if there are any peers to send to
                 const peerCount = await invoke('get_peer_count');
                 if (peerCount === 0) {
-                    console.log('No peers available - text saved for when peers connect');
-                    setStatus('Text saved - will send when peers connect', '#f6ad55');
+                    console.log('No peers available - text not sent');
+                    setStatus('No peers available - text not sent', '#e53e3e');
                 } else {
                     setStatus(`Text sent to ${peerCount} peer(s)`, '#38a169');
                 }
