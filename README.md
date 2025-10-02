@@ -142,7 +142,6 @@ To create a Windows executable and installer:
 3. **Output files** will be created in `src-tauri/target/release/bundle/`:
    - **Executable**: `msi/lanshare_0.1.0_x64_en-US.msi` (Windows installer)
    - **Portable**: `wix/lanshare_0.1.0_x64_en-US.msi` (alternative installer)
-   - **Direct EXE**: `app/lanshare.exe` (standalone executable)
 
 4. **Optional - Create portable executable**:
    ```bash
