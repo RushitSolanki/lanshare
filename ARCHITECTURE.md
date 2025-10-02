@@ -252,8 +252,8 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
        ▼                   ▼                   ▼                   ▼
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
 │ Text Input  │    │ Serialize   │    │ send_text_  │    │ UDP Send    │
-│ Event       │    │ Request     │    │ to_all_     │    │ to Peers    │
-│             │    │             │    │ peers()     │    │ (Port 7878) │
+│ Event       │    │ Request     │    │ to_all_peers│    │ to all known│
+│             │    │             │    │ (iterates)  │    │ peers       │
 └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
                                                               │
                                                               ▼

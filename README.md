@@ -10,61 +10,19 @@ A peer-to-peer text sharing application built with Tauri and Rust.
 - **Automatic Cleanup**: Remove stale peers that haven't been seen for 30 seconds
 - **Cross-platform**: Works on Windows, macOS, and Linux
 
-## UDP Peer Discovery System
+## Current Status
 
-The application includes a comprehensive UDP peer discovery system that:
+### ✅ Implemented Features
+- **UDP Peer Discovery**: Automatic discovery of peers on local network
+- **Real-time Text Sharing**: Instant text synchronization between peers
+- **Cross-platform Support**: Windows, macOS, and Linux
+- **Automatic Cleanup**: Stale peer removal
+- **Debug Interface**: Real-time peer information display
+- **Event-driven Architecture**: Real-time updates via Tauri events
 
-### Broadcasting
-- Broadcasts presence every 5 seconds on UDP port 7878
-- Includes peer ID, port, hostname, and timestamp
-- Uses broadcast address to reach all devices on the network
+## Getting Started
 
-### Listening
-- Listens for discovery messages on UDP port 7878
-- Automatically adds new peers to the registry
-- Ignores its own broadcast messages
-
-### Peer Registry
-- Thread-safe peer management with `Arc<RwLock<HashMap>>`
-- Automatic cleanup of stale peers (30-second timeout)
-- Provides methods to add, remove, and list peers
-
-### API Commands
-
-The application exposes the following Tauri commands for the frontend:
-
-- `get_peers()`: Returns a list of all discovered peers
-- `get_peer_count()`: Returns the number of discovered peers
-- `get_peer_id()`: Returns the current peer's ID
-- `send_text_to_all_peers(text)`: Sends text to all discovered peers
-- `send_text_to_peer(peer_id, text)`: Sends text to a specific peer
-
-## Text Sharing
-
-LanShare now supports real-time text sharing between peers:
-
-- **Instant Sync**: Text typed in one instance appears in all other instances
-- **UDP-based**: Uses the same UDP infrastructure as peer discovery
-- **Cross-platform**: Works seamlessly between Windows, macOS, and Linux
-- **Event-driven**: Real-time updates via Tauri's event system
-
-## Architecture
-
-### Core Components
-
-1. **`Peer`**: Represents a discovered peer with ID, IP, port, last_seen timestamp, and hostname
-2. **`PeerRegistry`**: Thread-safe registry for managing discovered peers
-3. **`UdpBroadcaster`**: Handles broadcasting presence messages
-4. **`UdpListener`**: Listens for discovery messages from other peers
-5. **`DiscoveryService`**: Coordinates broadcasting and listening tasks
-
-### Error Handling
-
-- Comprehensive error handling for network operations
-- Graceful degradation when network issues occur
-- Detailed logging for debugging and monitoring
-
-## Development
+This section guides you through setting up your development environment to build, run, and test LanShare.
 
 ### Prerequisites
 
@@ -72,34 +30,45 @@ LanShare now supports real-time text sharing between peers:
 - **Cargo**: 1.88.0 (tested with 1.88.0)
 - **Tauri CLI**: 2.6.2 (tested with 2.6.2)
 - **Node.js**: 16+
-- **Tauri Dependencies**: 
-  - `tauri = "2"` (as specified in Cargo.toml)
-  - `tauri-build = "2"` (as specified in Cargo.toml)
-- **macOS**: `create-dmg` (for DMG creation)
-- **Windows**: Microsoft Visual Studio C++ Build Tools
+
+#### Platform-Specific Dependencies
+- **macOS**: Xcode Command Line Tools & `create-dmg` (`brew install create-dmg`)
+- **Windows**: Microsoft Visual Studio C++ Build Tools (from Visual Studio)
 - **Linux**: `sudo apt install libwebkit2gtk-4.0-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`
 
 > **⚠️ Version Compatibility Note**: This project is tested and confirmed working with:
 > - Rust 1.88.0
 > - Cargo 1.88.0
 > - Tauri CLI 2.6.2
-> - Tauri framework 2.x
 > 
-> Using older versions may cause build failures. If you encounter issues, upgrade to these specific versions.
+> Using older versions may cause build failures. If you encounter issues, you can switch to the recommended versions:
+> ```sh
+> rustup install 1.88.0 && rustup default 1.88.0
+> cargo install tauri-cli --version 2.6.2
+> ```
 
-### Building
+### Building and Running
 
-```bash
-# Install dependencies
-cargo build
+```sh
+# Clone the repository and navigate into it
+git clone https://github.com/RushitSolanki/lanshare.git
+cd lanshare
 
-# Run in development mode
+# Install Rust dependencies
+cargo fetch
+
+# Build and run in development mode
 cargo tauri dev
 
 # Build for production (creates app bundle only)
 cargo tauri build
+```
 
 # Create DMG file (macOS only)
+### Creating Installers
+
+```bash
+# Create DMG file (macOS only, after building)
 ./create_dmg.sh
 ```
 
@@ -274,7 +243,8 @@ LanShare/
 │   ├── main.js          # Frontend JavaScript
 │   └── style.css        # Styling
 ├── ARCHITECTURE.md      # Detailed architecture documentation
-└── README.md            # This file
+├── README.md            # This file
+└── LICENSE              # Project license
 ```
 
 ## Contributing
