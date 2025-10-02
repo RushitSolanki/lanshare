@@ -604,7 +604,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_discovery_service_creation() {
-        let mut discovery_service = DiscoveryService::new(Duration::from_secs(30));
+        let discovery_service = DiscoveryService::new(Duration::from_secs(30));
         
         // Test that the service can be created
         assert!(discovery_service.peer_id().is_none());
