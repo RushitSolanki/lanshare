@@ -253,7 +253,7 @@ impl UdpListener {
     /// Start listening for discovery messages
     #[allow(dead_code)]
     pub async fn start_listening(&self) -> Result<()> {
-        let mut buf = [0; 1024];
+        let mut buf = [0; 8192];
 
         loop {
             match self.socket.recv_from(&mut buf).await {
@@ -407,7 +407,7 @@ impl DiscoveryService {
                     return;
                 }
             };
-            let mut buf = [0; 1024];
+            let mut buf = [0; 8192];
             loop {
                 match listener.socket.recv_from(&mut buf).await {
                     Ok((len, src_addr)) => {

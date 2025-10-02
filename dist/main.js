@@ -282,7 +282,8 @@ function setupTextAreaHandler() {
                 }
             } catch (error) {
                 console.error('Failed to send text:', error);
-                setStatus('Failed to send text', '#e53e3e');
+                const errorMessage = (error && (error.message || error.toString())) || 'Failed to send text';
+                setStatus(errorMessage, '#e53e3e');
             }
         }
     });

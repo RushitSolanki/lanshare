@@ -48,6 +48,11 @@ async fn debug_peer_structure(state: tauri::State<'_, AppState>) -> Result<Strin
 
 #[tauri::command]
 async fn send_text_to_peer(state: tauri::State<'_, AppState>, peer_id: String, text: String) -> Result<(), String> {
+    // Validate size before sending (reserve room for JSON overhead)
+    const MAX_TEXT_LEN: usize = 6000; // ~6KB text payload within 8KB UDP buffer
+    if text.len() > MAX_TEXT_LEN {
+        return Err(format!("Text too large ({} chars). Max allowed: {}", text.len(), MAX_TEXT_LEN));
+    }
     let peers = state.peer_registry.get_peers().await;
     
     if let Some(_peer) = peers.iter().find(|p| p.id == peer_id) {
@@ -86,6 +91,11 @@ async fn send_text_to_peer(state: tauri::State<'_, AppState>, peer_id: String, t
 
 #[tauri::command]
 async fn send_text_to_all_peers(state: tauri::State<'_, AppState>, text: String) -> Result<(), String> {
+    // Validate size before sending (reserve room for JSON overhead)
+    const MAX_TEXT_LEN: usize = 6000; // ~6KB text payload within 8KB UDP buffer
+    if text.len() > MAX_TEXT_LEN {
+        return Err(format!("Text too large ({} chars). Max allowed: {}", text.len(), MAX_TEXT_LEN));
+    }
     let peers = state.peer_registry.get_peers().await;
     
     if peers.is_empty() {
