@@ -5,10 +5,75 @@ const statusText = document.getElementById('status-text');
 const textarea = document.getElementById('main-text');
 const copyBtn = document.getElementById('copy-btn');
 
+// Byte counter elements
+let byteCounter = null;
+let byteCounterText = null;
+
 function setStatus(text, color = '#3182ce') {
     statusText.textContent = text;
     statusText.style.color = color;
     console.log(`Status: ${text}`);
+}
+
+// Byte counter functionality
+function createByteCounter() {
+    if (byteCounter) return; // Already created
+    
+    // Create byte counter container
+    byteCounter = document.createElement('div');
+    byteCounter.id = 'byte-counter';
+    byteCounter.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        color: #666;
+        padding: 4px 8px;
+        font-size: 11px;
+        font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+        z-index: 1000;
+        transition: color 0.3s ease;
+    `;
+    
+    byteCounterText = document.createElement('span');
+    byteCounter.appendChild(byteCounterText);
+    
+    // Add to page
+    document.body.appendChild(byteCounter);
+    
+    // Update counter initially
+    updateByteCounter();
+}
+
+function updateByteCounter() {
+    if (!byteCounterText || !textarea) return;
+    
+    const text = textarea.value;
+    const bytes = new TextEncoder().encode(text).length;
+    const maxBytes = 256 * 1024; // 256 KB
+    const percentage = (bytes / maxBytes) * 100;
+    
+    // Format bytes for display
+    const formatBytes = (bytes) => {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    };
+    
+    const formattedBytes = formatBytes(bytes);
+    const formattedMax = formatBytes(maxBytes);
+    
+    // Color coding based on usage
+    let color = '#666'; // Default gray
+    if (percentage > 80) color = '#f59e0b'; // Orange
+    if (percentage > 95) color = '#ef4444'; // Red
+    
+    byteCounterText.textContent = `${formattedBytes} / ${formattedMax}`;
+    byteCounterText.style.color = color;
+    
+    // Add percentage if over 50%
+    if (percentage > 50) {
+        byteCounterText.textContent += ` (${percentage.toFixed(1)}%)`;
+    }
 }
 
 // Copy button functionality
@@ -263,6 +328,9 @@ function setupTextAreaHandler() {
     textarea.addEventListener('input', async () => {
         const currentText = textarea.value;
         
+        // Update byte counter on every input
+        updateByteCounter();
+        
         // Only send if text has changed and we have Tauri APIs
         if (currentText !== lastText && invoke) {
             lastText = currentText;
@@ -309,6 +377,9 @@ async function initializeApp() {
         if (copyBtn) {
             copyBtn.addEventListener('click', copyText);
         }
+        
+        // Create byte counter
+        createByteCounter();
 
         // Simple event listener setup with longer delay
         setTimeout(() => {
@@ -324,7 +395,11 @@ async function initializeApp() {
                     try {
                         window.__TAURI__.event.listen('text-received', (event) => {
                             console.log('Received text from peer:', event.payload);
-                            if (textarea) textarea.value = event.payload;
+                            if (textarea) {
+                                textarea.value = event.payload;
+                                // Update byte counter when text is received
+                                updateByteCounter();
+                            }
                         });
                         console.log('Event listener set up successfully');
                     } catch (error) {
