@@ -110,6 +110,17 @@ async function copyText() {
     }
 }
 
+// Auto-copy helper used when text is received
+async function copyToClipboard(text) {
+    if (!text || !text.trim()) return;
+    try {
+        await navigator.clipboard.writeText(text);
+        console.log('Auto-copied received text to clipboard');
+    } catch (error) {
+        console.error('Auto-copy failed:', error);
+    }
+}
+
 // User-friendly status messages
 function setUserStatus(results) {
     console.log('Debug info:', results);
@@ -398,6 +409,9 @@ async function initializeApp() {
                                 textarea.value = event.payload;
                                 // Update byte counter when text is received
                                 updateByteCounter();
+                                // Auto-copy to clipboard
+                                copyToClipboard(event.payload);
+                                setStatus('Received and copied to clipboard', '#38a169');
                             }
                         });
                         console.log('Event listener set up successfully');
