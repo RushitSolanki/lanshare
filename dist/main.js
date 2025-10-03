@@ -113,11 +113,44 @@ async function copyText() {
 // Auto-copy helper used when text is received
 async function copyToClipboard(text) {
     if (!text || !text.trim()) return;
+    
+    // Try to focus the window first (helps on Windows where clipboard requires focus)
+    try {
+        if (appWindow && typeof appWindow.setFocus === 'function') {
+            await appWindow.setFocus();
+        } else if (typeof window.focus === 'function') {
+            window.focus();
+        }
+    } catch (e) {
+        // Non-fatal if focusing fails
+        console.log('Window focus attempt failed or not supported');
+    }
+    
+    // Primary attempt: modern Clipboard API
     try {
         await navigator.clipboard.writeText(text);
         console.log('Auto-copied received text to clipboard');
+        return true;
     } catch (error) {
-        console.error('Auto-copy failed:', error);
+        console.warn('Auto-copy via navigator.clipboard failed:', error);
+    }
+
+    // Fallback: temporary textarea + execCommand('copy')
+    try {
+        const temp = document.createElement('textarea');
+        temp.value = text;
+        temp.setAttribute('readonly', '');
+        temp.style.position = 'absolute';
+        temp.style.left = '-9999px';
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand('copy');
+        document.body.removeChild(temp);
+        console.log('Auto-copied via execCommand fallback');
+        return true;
+    } catch (fallbackError) {
+        console.error('Auto-copy fallback failed:', fallbackError);
+        return false;
     }
 }
 
