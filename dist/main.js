@@ -112,7 +112,8 @@ async function copyText() {
 
 // Auto-copy helper used when text is received
 async function copyToClipboard(text) {
-    if (!text || !text.trim()) return;
+    // Allow empty string to clear the clipboard; only skip if null/undefined
+    if (text === undefined || text === null) return;
     
     // Try to focus the window first (helps on Windows where clipboard requires focus)
     try {
