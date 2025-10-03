@@ -65,13 +65,19 @@ async fn send_text_to_peer(state: tauri::State<'_, AppState>, peer_id: String, t
                         let peer_addr = format!("{}:{}", _peer.ip, 7878);
                         if let Ok(addr) = peer_addr.parse::<std::net::SocketAddr>() {
                             let message_count = messages.len();
-                            for message in messages {
+                            for (i, message) in messages.into_iter().enumerate() {
                                 if let Ok(message_bytes) = serde_json::to_vec(&message) {
                                     if let Err(e) = socket.send_to(&message_bytes, addr).await {
                                         error!("Failed to send message chunk to peer {}: {}", peer_id, e);
                                     } else {
-                                        info!("Sent message chunk to peer {}: {} bytes", peer_id, message_bytes.len());
+                                        info!("Sent message chunk {}/{} to peer {}: {} bytes", 
+                                              i + 1, message_count, peer_id, message_bytes.len());
                                     }
+                                }
+                                
+                                // Rate limiting: 2ms delay between chunks (except for the last one)
+                                if i < message_count - 1 {
+                                    tokio::time::sleep(tokio::time::Duration::from_millis(2)).await;
                                 }
                             }
                             info!("Sent text to peer {}: {} chars in {} messages", peer_id, text.len(), message_count);
@@ -109,16 +115,23 @@ async fn send_text_to_all_peers(state: tauri::State<'_, AppState>, text: String)
             Ok(messages) => {
                 // Send all messages (single or multiple chunks) to all peers
                 if let Ok(socket) = tokio::net::UdpSocket::bind("0.0.0.0:0").await {
+                    let message_count = messages.len();
                     for peer in peers {
                         let peer_addr = format!("{}:{}", peer.ip, 7878);
                         if let Ok(addr) = peer_addr.parse::<std::net::SocketAddr>() {
-                            for message in &messages {
+                            for (i, message) in messages.iter().enumerate() {
                                 if let Ok(message_bytes) = serde_json::to_vec(message) {
                                     if let Err(e) = socket.send_to(&message_bytes, addr).await {
                                         error!("Failed to send message chunk to peer {}: {}", peer.id, e);
                                     } else {
-                                        info!("Sent message chunk to peer {}: {} bytes", peer.id, message_bytes.len());
+                                        info!("Sent message chunk {}/{} to peer {}: {} bytes", 
+                                              i + 1, message_count, peer.id, message_bytes.len());
                                     }
+                                }
+                                
+                                // Rate limiting: 2ms delay between chunks (except for the last one)
+                                if i < message_count - 1 {
+                                    tokio::time::sleep(tokio::time::Duration::from_millis(2)).await;
                                 }
                             }
                         }

@@ -17,8 +17,8 @@ use tauri::Emitter;
 
 // Configuration constants for chunking
 pub const MAX_MESSAGE_BYTES: usize = 256 * 1024; // 256 KB max message size
-const CHUNK_PAYLOAD_BYTES: usize = 1100;     // ~1100 bytes per chunk (fits MTU)
-const REASSEMBLY_TIMEOUT_SECS: u64 = 60;     // 60 seconds timeout for incomplete messages
+const CHUNK_PAYLOAD_BYTES: usize = 800;      // 800 bytes per chunk (optimized for reliability)
+const REASSEMBLY_TIMEOUT_SECS: u64 = 10;     // 10 seconds timeout for incomplete messages (faster failure detection)
 
 /// Simple checksum function for chunk integrity
 fn simple_checksum(data: &[u8]) -> u32 {
@@ -551,7 +551,8 @@ impl DiscoveryService {
                 let initial_count = states.len();
                 states.retain(|message_id, state| {
                     if state.is_stale() {
-                        warn!("Cleaning up stale reassembly state for message {}", message_id);
+                        warn!("Cleaning up stale reassembly state for message {}: {}/{} chunks received (timeout after {}s)", 
+                              message_id, state.received_count, state.total_chunks, REASSEMBLY_TIMEOUT_SECS);
                         false
                     } else {
                         true
@@ -574,7 +575,7 @@ impl DiscoveryService {
         reassembly_states: &Arc<RwLock<HashMap<String, ReassemblyState>>>,
     ) -> Result<()> {
         // Log raw UDP packet
-        info!("Received UDP packet from {}: {:?}", src_addr, message_bytes);
+        debug!("Received UDP packet from {}: {:?}", src_addr, message_bytes);
 
         let message: DiscoveryMessage = match serde_json::from_slice(message_bytes) {
             Ok(msg) => msg,
@@ -585,7 +586,7 @@ impl DiscoveryService {
         };
 
         // Log after deserialization
-        info!("Deserialized message from {}: {:?}", src_addr, message);
+        debug!("Deserialized message from {}: {:?}", src_addr, message);
 
         if message.peer_id == own_peer_id {
             return Ok(());
@@ -652,11 +653,19 @@ impl DiscoveryService {
         
         // Get or create reassembly state
         let is_complete = if let Some(state) = states.get_mut(message_id) {
-            state.add_chunk(seq_no, payload.clone())
+            let was_complete = state.is_complete();
+            let is_complete = state.add_chunk(seq_no, payload.clone());
+            if !was_complete {
+                info!("Reassembly progress for {}: {}/{} chunks received", 
+                      message_id, state.received_count, total_chunks);
+            }
+            is_complete
         } else {
             let mut new_state = ReassemblyState::new(total_chunks, message.peer_id.clone());
             let is_complete = new_state.add_chunk(seq_no, payload.clone());
             states.insert(message_id.clone(), new_state);
+            info!("Started reassembly for message {}: {}/{} chunks received", 
+                  message_id, 1, total_chunks);
             is_complete
         };
 
@@ -873,7 +882,7 @@ mod tests {
     #[test]
     fn test_chunking_large_message() {
         let discovery_service = DiscoveryService::new(Duration::from_secs(30));
-        // Create a message larger than CHUNK_PAYLOAD_BYTES (1100)
+        // Create a message larger than CHUNK_PAYLOAD_BYTES (800)
         let large_text = "A".repeat(2000);
         
         let messages = discovery_service.chunk_text_to_messages(&large_text, "test-peer", 7878, None).unwrap();
