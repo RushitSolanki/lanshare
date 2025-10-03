@@ -10,6 +10,7 @@ Peer‑to‑peer text sharing for local networks, built with Tauri and Rust.
 - **Reliable reassembly**: Checksums, duplicate handling, and timeout cleanup
 - **Live peer management**: Keeps an up‑to‑date list of available peers
 - **Cross‑platform**: Windows, macOS, and Linux
+ - **Auto‑copy on receive**: Received text is automatically copied to the system clipboard
 
 ## Requirements
 
@@ -88,6 +89,7 @@ RUST_LOG=warn cargo tauri dev
 1. Run LanShare on two machines on the same network
 2. Wait for peer discovery (peers appear in the debug panel)
 3. Type in one textarea — the text mirrors to the other machine
+4. On the receiving machine, the received text is auto‑copied to the clipboard, so you can paste immediately (Cmd/Ctrl+V). The manual copy button remains available as a fallback.
 
 Message size behavior:
 - **≤ 1100 bytes**: Single UDP packet
