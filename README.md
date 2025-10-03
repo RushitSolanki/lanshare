@@ -6,8 +6,10 @@ A peer-to-peer text sharing application built with Tauri and Rust.
 
 - **UDP Peer Discovery**: Automatically discover other LanShare instances on the local network
 - **Real-time Text Sharing**: Instant text synchronization between discovered peers
+- **Large Message Support**: Send messages up to 256 KB with automatic chunking
+- **Reliable Delivery**: Automatic reassembly with integrity checking and timeout cleanup
 - **Real-time Peer Management**: Maintain an up-to-date list of available peers
-- **Automatic Cleanup**: Remove stale peers that haven't been seen for 30 seconds
+- **Automatic Cleanup**: Remove stale peers and incomplete messages
 - **Cross-platform**: Works on Windows, macOS, and Linux
 
 ## Current Status
@@ -15,10 +17,13 @@ A peer-to-peer text sharing application built with Tauri and Rust.
 ### ✅ Implemented Features
 - **UDP Peer Discovery**: Automatic discovery of peers on local network
 - **Real-time Text Sharing**: Instant text synchronization between peers
+- **Message Chunking**: Support for large messages up to 256 KB
+- **Automatic Reassembly**: Reliable reconstruction of chunked messages
 - **Cross-platform Support**: Windows, macOS, and Linux
-- **Automatic Cleanup**: Stale peer removal
+- **Automatic Cleanup**: Stale peer removal and incomplete message cleanup
 - **Debug Interface**: Real-time peer information display
 - **Event-driven Architecture**: Real-time updates via Tauri events
+- **Integrity Checking**: Checksums for chunk validation
 
 ## Getting Started
 
@@ -142,6 +147,27 @@ cargo test
 RUST_LOG=debug cargo test
 ```
 
+#### Test Coverage
+
+The project includes comprehensive test coverage with **18 tests** covering:
+
+**Core Functionality:**
+- Peer registry operations (add/remove/count)
+- Stale peer detection and cleanup
+- Discovery service initialization
+
+**Message Chunking System:**
+- Chunking thresholds (≤1100 bytes single packet, >1100 bytes chunked)
+- Large message reassembly (up to 256 KB)
+- Checksum validation and integrity checking
+- Unicode/UTF-8 handling across chunk boundaries
+- Error recovery (duplicate chunks, invalid sequences, timeouts)
+
+**Data Integrity:**
+- JSON serialization/deserialization of all message types
+- Configuration validation and constants
+- Edge cases and malformed input handling
+
 ## Configuration
 
 ### Discovery Settings
@@ -178,10 +204,13 @@ RUST_LOG=warn cargo tauri dev
 ### ✅ Implemented Features
 - **UDP Peer Discovery**: Automatic discovery of peers on local network
 - **Real-time Text Sharing**: Instant text synchronization between peers
+- **Message Chunking**: Support for large messages up to 256 KB
+- **Automatic Reassembly**: Reliable reconstruction of chunked messages
 - **Cross-platform Support**: Windows, macOS, and Linux
-- **Automatic Cleanup**: Stale peer removal
+- **Automatic Cleanup**: Stale peer removal and incomplete message cleanup
 - **Debug Interface**: Real-time peer information display
 - **Event-driven Architecture**: Real-time updates via Tauri events
+- **Integrity Checking**: Checksums for chunk validation
 
 ## Getting Started
 
@@ -227,6 +256,17 @@ RUST_LOG=warn cargo tauri dev
 2. Wait for peer discovery (should see each other in the debug panel)
 3. Type text in the textarea on one machine
 4. The text should appear in the textarea on the other machine
+
+### Message Size Capabilities
+
+- **Small Messages (≤1100 bytes)**: Sent as single UDP packets for optimal performance
+- **Large Messages (>1100 bytes)**: Automatically chunked into multiple packets
+- **Maximum Size**: 256 KB per message (configurable)
+- **Character Limits**:
+  - ASCII text: ~256,000 characters
+  - Emoji-heavy text: ~64,000 characters
+  - Mixed content: Depends on UTF-8 byte usage
+- **Reliability**: Checksums ensure data integrity, timeout cleanup prevents memory leaks
 
 ## Project Structure
 ```

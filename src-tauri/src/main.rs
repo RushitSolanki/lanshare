@@ -48,38 +48,44 @@ async fn debug_peer_structure(state: tauri::State<'_, AppState>) -> Result<Strin
 
 #[tauri::command]
 async fn send_text_to_peer(state: tauri::State<'_, AppState>, peer_id: String, text: String) -> Result<(), String> {
-    // Validate size before sending (reserve room for JSON overhead)
-    const MAX_TEXT_LEN: usize = 6000; // ~6KB text payload within 8KB UDP buffer
-    if text.len() > MAX_TEXT_LEN {
-        return Err(format!("Text too large ({} chars). Max allowed: {}", text.len(), MAX_TEXT_LEN));
+    // Validate size before sending (use new chunking limit)
+    if text.len() > discovery::MAX_MESSAGE_BYTES {
+        return Err(format!("Text too large ({} chars). Max allowed: {}", text.len(), discovery::MAX_MESSAGE_BYTES));
     }
     let peers = state.peer_registry.get_peers().await;
     
     if let Some(_peer) = peers.iter().find(|p| p.id == peer_id) {
         let discovery_service = state.discovery_service.lock().await;
         if let Some(ds) = discovery_service.as_ref() {
-            // Create text message
-            let message = discovery::DiscoveryMessage {
-                message_type: discovery::MessageType::TextMessage,
-                peer_id: ds.peer_id().unwrap_or_default(),
-                port: 7878, // Changed from 8080 to 7878
-                hostname: None,
-                timestamp: chrono::Utc::now(),
-                text: Some(text.clone()),
-            };
-            
-            // Send to specific peer
-            if let Ok(message_bytes) = serde_json::to_vec(&message) {
-                // Send UDP message to peer
-                if let Ok(socket) = tokio::net::UdpSocket::bind("0.0.0.0:0").await {
-                    let peer_addr = format!("{}:{}", _peer.ip, 7878); // Changed to use 7878
-                    if let Ok(addr) = peer_addr.parse::<std::net::SocketAddr>() {
-                        if let Err(e) = socket.send_to(&message_bytes, addr).await {
-                            error!("Failed to send text to peer {}: {}", peer_id, e);
-                        } else {
-                            info!("Sent text to peer {}: {}", peer_id, text);
+            // Use chunking for large messages
+            match ds.chunk_text_to_messages(&text, &ds.peer_id().unwrap_or_default(), 7878, None) {
+                Ok(messages) => {
+                    // Send all messages (single or multiple chunks)
+                    if let Ok(socket) = tokio::net::UdpSocket::bind("0.0.0.0:0").await {
+                        let peer_addr = format!("{}:{}", _peer.ip, 7878);
+                        if let Ok(addr) = peer_addr.parse::<std::net::SocketAddr>() {
+                            let message_count = messages.len();
+                            for (i, message) in messages.into_iter().enumerate() {
+                                if let Ok(message_bytes) = serde_json::to_vec(&message) {
+                                    if let Err(e) = socket.send_to(&message_bytes, addr).await {
+                                        error!("Failed to send message chunk to peer {}: {}", peer_id, e);
+                                    } else {
+                                        info!("Sent message chunk {}/{} to peer {}: {} bytes", 
+                                              i + 1, message_count, peer_id, message_bytes.len());
+                                    }
+                                }
+                                
+                                // Rate limiting: 2ms delay between chunks (except for the last one)
+                                if i < message_count - 1 {
+                                    tokio::time::sleep(tokio::time::Duration::from_millis(2)).await;
+                                }
+                            }
+                            info!("Sent text to peer {}: {} chars in {} messages", peer_id, text.len(), message_count);
                         }
                     }
+                }
+                Err(e) => {
+                    error!("Failed to chunk text for peer {}: {}", peer_id, e);
                 }
             }
         }
@@ -91,10 +97,9 @@ async fn send_text_to_peer(state: tauri::State<'_, AppState>, peer_id: String, t
 
 #[tauri::command]
 async fn send_text_to_all_peers(state: tauri::State<'_, AppState>, text: String) -> Result<(), String> {
-    // Validate size before sending (reserve room for JSON overhead)
-    const MAX_TEXT_LEN: usize = 6000; // ~6KB text payload within 8KB UDP buffer
-    if text.len() > MAX_TEXT_LEN {
-        return Err(format!("Text too large ({} chars). Max allowed: {}", text.len(), MAX_TEXT_LEN));
+    // Validate size before sending (use new chunking limit)
+    if text.len() > discovery::MAX_MESSAGE_BYTES {
+        return Err(format!("Text too large ({} chars). Max allowed: {}", text.len(), discovery::MAX_MESSAGE_BYTES));
     }
     let peers = state.peer_registry.get_peers().await;
     
@@ -105,31 +110,37 @@ async fn send_text_to_all_peers(state: tauri::State<'_, AppState>, text: String)
     
     let discovery_service = state.discovery_service.lock().await;
     if let Some(ds) = discovery_service.as_ref() {
-        // Create text message
-        let message = discovery::DiscoveryMessage {
-            message_type: discovery::MessageType::TextMessage,
-            peer_id: ds.peer_id().unwrap_or_default(),
-            port: 7878, // Changed from 8080 to 7878
-            hostname: None,
-            timestamp: chrono::Utc::now(),
-            text: Some(text.clone()),
-        };
-        
-        // Send to all peers
-        if let Ok(message_bytes) = serde_json::to_vec(&message) {
-            // Broadcast UDP message to all peers
-            if let Ok(socket) = tokio::net::UdpSocket::bind("0.0.0.0:0").await {
-                for peer in peers {
-                    let peer_addr = format!("{}:{}", peer.ip, 7878); // Changed to use 7878
-                    if let Ok(addr) = peer_addr.parse::<std::net::SocketAddr>() {
-                        if let Err(e) = socket.send_to(&message_bytes, addr).await {
-                            error!("Failed to send text to peer {}: {}", peer.id, e);
-                        } else {
-                            info!("Sent text to peer {}: {}", peer.id, text);
+        // Use chunking for large messages
+        match ds.chunk_text_to_messages(&text, &ds.peer_id().unwrap_or_default(), 7878, None) {
+            Ok(messages) => {
+                // Send all messages (single or multiple chunks) to all peers
+                if let Ok(socket) = tokio::net::UdpSocket::bind("0.0.0.0:0").await {
+                    let message_count = messages.len();
+                    for peer in peers {
+                        let peer_addr = format!("{}:{}", peer.ip, 7878);
+                        if let Ok(addr) = peer_addr.parse::<std::net::SocketAddr>() {
+                            for (i, message) in messages.iter().enumerate() {
+                                if let Ok(message_bytes) = serde_json::to_vec(message) {
+                                    if let Err(e) = socket.send_to(&message_bytes, addr).await {
+                                        error!("Failed to send message chunk to peer {}: {}", peer.id, e);
+                                    } else {
+                                        info!("Sent message chunk {}/{} to peer {}: {} bytes", 
+                                              i + 1, message_count, peer.id, message_bytes.len());
+                                    }
+                                }
+                                
+                                // Rate limiting: 2ms delay between chunks (except for the last one)
+                                if i < message_count - 1 {
+                                    tokio::time::sleep(tokio::time::Duration::from_millis(2)).await;
+                                }
+                            }
                         }
                     }
+                    info!("Broadcasted text to all peers: {} chars in {} messages", text.len(), messages.len());
                 }
-                info!("Broadcasted text to all peers: {}", text);
+            }
+            Err(e) => {
+                error!("Failed to chunk text for broadcast: {}", e);
             }
         }
     }
@@ -194,4 +205,4 @@ fn main() -> Result<()> {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
     Ok(())
-} 
+}

@@ -251,15 +251,41 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
        │                   │                   │                   │
        ▼                   ▼                   ▼                   ▼
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│ Text Input  │    │ Serialize   │    │ send_text_  │    │ UDP Send    │
-│ Event       │    │ Request     │    │ to_all_peers│    │ to all known│
-│             │    │             │    │ (iterates)  │    │ peers       │
+│ Text Input  │    │ Serialize   │    │ send_text_  │    │ Chunking    │
+│ Event       │    │ Request     │    │ to_all_peers│    │ Decision    │
+│             │    │             │    │ (iterates)  │    │ Logic       │
 └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+                                                              │
+                                                              ▼
+                                                    ┌─────────────┐
+                                                    │ Size Check  │
+                                                    │ ≤1100 bytes │
+                                                    └─────────────┘
+                                                              │
+                                                              ▼
+                                                    ┌─────────────┐
+                                                    │ Single vs   │
+                                                    │ Multiple    │
+                                                    │ UDP Packets │
+                                                    └─────────────┘
+                                                              │
+                                                              ▼
+                                                    ┌─────────────┐
+                                                    │ UDP Send    │
+                                                    │ to all known│
+                                                    │ peers       │
+                                                    └─────────────┘
                                                               │
                                                               ▼
                                                     ┌─────────────┐
                                                     │ UDP Receive │
                                                     │ (Port 7878) │
+                                                    └─────────────┘
+                                                              │
+                                                              ▼
+                                                    ┌─────────────┐
+                                                    │ Reassembly  │
+                                                    │ (if chunked)│
                                                     └─────────────┘
                                                               │
                                                               ▼
@@ -274,6 +300,33 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
                                                     │ Update      │
                                                     └─────────────┘
 ```
+
+### 4. Message Chunking System
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Chunking Architecture                        │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────┐    ┌─────────────────┐    ┌──────────────┐ │
+│  │   Sender Side   │    │   Network       │    │ Receiver Side│ │
+│  │                 │    │   Transport     │    │              │ │
+│  │ • Size Check    │    │                 │    │ • Chunk      │ │
+│  │ • Auto Chunking │    │ • Small UDP     │    │   Collection │ │
+│  │ • Checksum      │    │   Packets       │    │ • Reassembly │ │
+│  │ • Sequence      │    │ • MTU Safe      │    │ • Integrity  │ │
+│  │   Numbers       │    │   (≤1500 bytes) │    │   Check      │ │
+│  │ • Message ID    │    │ • Reliable      │    │ • Timeout    │ │
+│  │   Generation    │    │   Delivery      │    │   Cleanup    │ │
+│  └─────────────────┘    └─────────────────┘    └──────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Chunking Configuration
+- **Max Message Size**: 256 KB (configurable)
+- **Chunk Payload Size**: ~1100 bytes (fits within MTU)
+- **Reassembly Timeout**: 60 seconds
+- **Checksum Algorithm**: Simple byte sum for integrity
+- **Buffer Size**: 8192 bytes (increased from 1024)
 
 ## Technical Specifications
 
@@ -304,12 +357,18 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 
 ```json
 {
-  "message_type": "PeerDiscovery|TextMessage",
+  "message_type": "PeerDiscovery|TextMessage|TextChunk",
   "peer_id": "uuid-string",
   "port": 7878,
   "hostname": "optional-hostname",
   "timestamp": "ISO-8601-timestamp",
-  "text": "optional-text-content"
+  "text": "optional-text-content",
+  "message_id": "optional-uuid-for-chunked-messages",
+  "seq_no": "optional-sequence-number",
+  "total_chunks": "optional-total-chunk-count",
+  "payload_len": "optional-payload-length",
+  "checksum": "optional-checksum-for-integrity",
+  "payload": "optional-chunk-data-as-bytes"
 }
 ```
 
@@ -399,10 +458,12 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 
 ### Network Performance
 - **Discovery Latency**: < 5 seconds
-- **Text Sync Latency**: < 1 second
+- **Text Sync Latency**: < 1 second (small messages), scales with size (large messages)
 - **Peer Timeout**: 30 seconds
 - **Broadcast Overhead**: Minimal (JSON messages)
-- **Memory Usage**: Low (peer registry only)
+- **Memory Usage**: Low (peer registry + reassembly buffers)
+- **Message Size Limit**: 256 KB (up from 6 KB with chunking)
+- **Chunking Overhead**: ~10% for large messages (headers + checksums)
 
 ### Application Performance
 - **Startup Time**: < 2 seconds
@@ -415,7 +476,11 @@ LanShare is a peer-to-peer file sharing application built with Tauri 2.x and Rus
 ### ✅ Implemented
 - **UDP Peer Discovery**: Automatic discovery of peers on local network
 - **Real-time Text Sharing**: Instant text synchronization between peers
+- **Message Chunking**: Support for large messages up to 256 KB
+- **Automatic Reassembly**: Reliable reconstruction of chunked messages
 - **Cross-platform Support**: Windows, macOS, and Linux
-- **Automatic Cleanup**: Stale peer removal
+- **Automatic Cleanup**: Stale peer removal and incomplete message cleanup
 - **Debug Interface**: Real-time peer information display
 - **Event-driven Architecture**: Real-time updates via Tauri events
+- **Integrity Checking**: Checksums for chunk validation
+- **Timeout Management**: Automatic cleanup of incomplete reassembly states

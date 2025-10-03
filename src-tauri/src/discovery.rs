@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -14,6 +14,16 @@ use tokio::time::{interval, sleep};
 use uuid::Uuid;
 use tauri::AppHandle;
 use tauri::Emitter;
+
+// Configuration constants for chunking
+pub const MAX_MESSAGE_BYTES: usize = 256 * 1024; // 256 KB max message size
+const CHUNK_PAYLOAD_BYTES: usize = 800;      // 800 bytes per chunk (optimized for reliability)
+const REASSEMBLY_TIMEOUT_SECS: u64 = 10;     // 10 seconds timeout for incomplete messages (faster failure detection)
+
+/// Simple checksum function for chunk integrity
+fn simple_checksum(data: &[u8]) -> u32 {
+    data.iter().fold(0u32, |acc, &byte| acc.wrapping_add(byte as u32))
+}
 
 /// Represents a discovered peer on the network
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -50,10 +60,11 @@ impl Peer {
 }
 
 /// Message format for UDP broadcasts
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum MessageType {
     PeerDiscovery,
-    TextMessage,
+    TextMessage,   // Single-packet text message
+    TextChunk,     // Chunked text message
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,7 +74,78 @@ pub struct DiscoveryMessage {
     pub port: u16,
     pub hostname: Option<String>,
     pub timestamp: DateTime<Utc>,
-    pub text: Option<String>, // For text messages
+    pub text: Option<String>, // For single-packet text messages
+    // Chunking fields
+    pub message_id: Option<String>,    // Unique ID for the complete message
+    pub seq_no: Option<u32>,          // Sequence number of this chunk (0-based)
+    pub total_chunks: Option<u32>,    // Total number of chunks in the message
+    pub payload_len: Option<u32>,     // Length of payload in this chunk
+    pub checksum: Option<u32>,        // Simple checksum for integrity
+    pub payload: Option<Vec<u8>>,     // Chunk data (UTF-8 bytes)
+}
+
+/// State for reassembling chunked messages
+#[derive(Debug)]
+struct ReassemblyState {
+    total_chunks: u32,
+    received_chunks: Vec<Option<Vec<u8>>>,
+    received_count: u32,
+    started_at: Instant,
+    sender_peer_id: String,
+}
+
+impl ReassemblyState {
+    fn new(total_chunks: u32, sender_peer_id: String) -> Self {
+        Self {
+            total_chunks,
+            received_chunks: vec![None; total_chunks as usize],
+            received_count: 0,
+            started_at: Instant::now(),
+            sender_peer_id,
+        }
+    }
+
+    fn add_chunk(&mut self, seq_no: u32, payload: Vec<u8>) -> bool {
+        if seq_no >= self.total_chunks {
+            return false;
+        }
+        
+        if self.received_chunks[seq_no as usize].is_none() {
+            self.received_chunks[seq_no as usize] = Some(payload);
+            self.received_count += 1;
+        }
+        
+        self.received_count == self.total_chunks
+    }
+
+    fn is_complete(&self) -> bool {
+        self.received_count == self.total_chunks
+    }
+
+    fn is_stale(&self) -> bool {
+        self.started_at.elapsed().as_secs() > REASSEMBLY_TIMEOUT_SECS
+    }
+
+    fn reassemble(&self) -> Result<String> {
+        if !self.is_complete() {
+            return Err(anyhow::anyhow!("Message not complete"));
+        }
+
+        let mut complete_data = Vec::new();
+        for chunk in &self.received_chunks {
+            if let Some(ref data) = chunk {
+                complete_data.extend_from_slice(data);
+            } else {
+                return Err(anyhow::anyhow!("Missing chunk data"));
+            }
+        }
+
+        let result = String::from_utf8(complete_data)
+            .context("Failed to decode UTF-8")?;
+        
+        info!("Successfully reassembled message from peer {}: {} chars", self.sender_peer_id, result.len());
+        Ok(result)
+    }
 }
 
 /// Registry for managing discovered peers
@@ -206,6 +288,12 @@ impl UdpBroadcaster {
                 hostname: self.hostname.clone(),
                 timestamp: Utc::now(),
                 text: None,
+                message_id: None,
+                seq_no: None,
+                total_chunks: None,
+                payload_len: None,
+                checksum: None,
+                payload: None,
             };
 
             let message_bytes = serde_json::to_vec(&message)
@@ -298,6 +386,13 @@ impl UdpListener {
                     // TODO: Handle text message (emit to frontend)
                 }
             }
+            MessageType::TextChunk => {
+                info!("Received text chunk from {}: seq={}/{}", 
+                    message.peer_id, 
+                    message.seq_no.unwrap_or(0), 
+                    message.total_chunks.unwrap_or(0));
+                // Note: TextChunk handling is done in the new listener implementation
+            }
         }
 
         Ok(())
@@ -309,6 +404,7 @@ pub struct DiscoveryService {
     registry: Arc<PeerRegistry>,
     peer_id: Option<String>,
     pub app_handle: Option<AppHandle>,
+    reassembly_states: Arc<RwLock<HashMap<String, ReassemblyState>>>,
 }
 
 impl DiscoveryService {
@@ -317,6 +413,7 @@ impl DiscoveryService {
             registry: Arc::new(PeerRegistry::new(timeout_duration)),
             peer_id: None,
             app_handle: None,
+            reassembly_states: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -371,6 +468,12 @@ impl DiscoveryService {
                 hostname: broadcaster.hostname.clone(),
                 timestamp: Utc::now(),
                 text: None,
+                message_id: None,
+                seq_no: None,
+                total_chunks: None,
+                payload_len: None,
+                checksum: None,
+                payload: None,
             };
                 let message_bytes = match serde_json::to_vec(&message) {
                     Ok(bytes) => bytes,
@@ -397,6 +500,7 @@ impl DiscoveryService {
     pub fn get_listener_task(&self, own_peer_id: String) -> Result<tokio::task::JoinHandle<()>> {
         let registry = self.registry.clone();
         let app_handle = self.app_handle.clone();
+        let reassembly_states = self.reassembly_states.clone();
         let listener = UdpListener::new(registry.clone(), own_peer_id.clone());
         
         Ok(tokio::spawn(async move {
@@ -418,6 +522,7 @@ impl DiscoveryService {
                             &registry,
                             &own_peer_id,
                             app_handle.clone(),
+                            &reassembly_states,
                         ).await {
                             error!("Failed to handle discovery message: {}", e);
                         }
@@ -434,11 +539,29 @@ impl DiscoveryService {
     /// Get the cleanup task for spawning
     pub fn get_cleanup_task(&self) -> tokio::task::JoinHandle<()> {
         let registry = self.registry.clone();
+        let reassembly_states = self.reassembly_states.clone();
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(3));
             loop {
                 interval.tick().await;
                 registry.cleanup_stale_peers().await;
+                
+                // Clean up stale reassembly states
+                let mut states = reassembly_states.write().await;
+                let initial_count = states.len();
+                states.retain(|message_id, state| {
+                    if state.is_stale() {
+                        warn!("Cleaning up stale reassembly state for message {}: {}/{} chunks received (timeout after {}s)", 
+                              message_id, state.received_count, state.total_chunks, REASSEMBLY_TIMEOUT_SECS);
+                        false
+                    } else {
+                        true
+                    }
+                });
+                let removed_count = initial_count - states.len();
+                if removed_count > 0 {
+                    info!("Cleaned up {} stale reassembly states", removed_count);
+                }
             }
         })
     }
@@ -449,9 +572,10 @@ impl DiscoveryService {
         registry: &Arc<PeerRegistry>,
         own_peer_id: &str,
         app_handle: Option<AppHandle>,
+        reassembly_states: &Arc<RwLock<HashMap<String, ReassemblyState>>>,
     ) -> Result<()> {
         // Log raw UDP packet
-        info!("Received UDP packet from {}: {:?}", src_addr, message_bytes);
+        debug!("Received UDP packet from {}: {:?}", src_addr, message_bytes);
 
         let message: DiscoveryMessage = match serde_json::from_slice(message_bytes) {
             Ok(msg) => msg,
@@ -462,7 +586,7 @@ impl DiscoveryService {
         };
 
         // Log after deserialization
-        info!("Deserialized message from {}: {:?}", src_addr, message);
+        debug!("Deserialized message from {}: {:?}", src_addr, message);
 
         if message.peer_id == own_peer_id {
             return Ok(());
@@ -486,7 +610,82 @@ impl DiscoveryService {
                     }
                 }
             }
+            MessageType::TextChunk => {
+                info!("Received text chunk from {}: seq={}/{}", 
+                    message.peer_id, 
+                    message.seq_no.unwrap_or(0), 
+                    message.total_chunks.unwrap_or(0));
+                
+                // Handle chunk reassembly
+                if let Err(e) = Self::handle_text_chunk_internal(message, app_handle.clone(), reassembly_states).await {
+                    error!("Failed to handle text chunk: {}", e);
+                }
+            }
         }
+        Ok(())
+    }
+
+    /// Internal function to handle text chunk reassembly
+    async fn handle_text_chunk_internal(
+        message: DiscoveryMessage,
+        app_handle: Option<AppHandle>,
+        reassembly_states: &Arc<RwLock<HashMap<String, ReassemblyState>>>,
+    ) -> Result<()> {
+        let message_id = message.message_id.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Missing message_id"))?;
+        let seq_no = message.seq_no
+            .ok_or_else(|| anyhow::anyhow!("Missing seq_no"))?;
+        let total_chunks = message.total_chunks
+            .ok_or_else(|| anyhow::anyhow!("Missing total_chunks"))?;
+        let payload = message.payload.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Missing payload"))?;
+
+        // Verify checksum
+        if let Some(expected_checksum) = message.checksum {
+            let actual_checksum = simple_checksum(payload);
+            if actual_checksum != expected_checksum {
+                warn!("Checksum mismatch for chunk {} of message {}", seq_no, message_id);
+                return Ok(()); // Continue processing other chunks
+            }
+        }
+
+        let mut states = reassembly_states.write().await;
+        
+        // Get or create reassembly state
+        let is_complete = if let Some(state) = states.get_mut(message_id) {
+            let was_complete = state.is_complete();
+            let is_complete = state.add_chunk(seq_no, payload.clone());
+            if !was_complete {
+                info!("Reassembly progress for {}: {}/{} chunks received", 
+                      message_id, state.received_count, total_chunks);
+            }
+            is_complete
+        } else {
+            let mut new_state = ReassemblyState::new(total_chunks, message.peer_id.clone());
+            let is_complete = new_state.add_chunk(seq_no, payload.clone());
+            states.insert(message_id.clone(), new_state);
+            info!("Started reassembly for message {}: {}/{} chunks received", 
+                  message_id, 1, total_chunks);
+            is_complete
+        };
+
+        // If complete, reassemble and emit
+        if is_complete {
+            if let Some(state) = states.remove(message_id) {
+                match state.reassemble() {
+                    Ok(complete_text) => {
+                        info!("Reassembled complete message from {} chunks: {} chars", total_chunks, complete_text.len());
+                        if let Some(app) = app_handle {
+                            let _ = app.emit("text-received", &complete_text);
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to reassemble message {}: {}", message_id, e);
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -499,6 +698,56 @@ impl DiscoveryService {
     pub fn peer_id(&self) -> Option<String> {
         self.peer_id.clone()
     }
+
+    /// Chunk text into multiple messages for large payloads
+    pub fn chunk_text_to_messages(&self, text: &str, peer_id: &str, port: u16, hostname: Option<String>) -> Result<Vec<DiscoveryMessage>> {
+        let text_bytes = text.as_bytes();
+        
+        if text_bytes.len() <= CHUNK_PAYLOAD_BYTES {
+            // Single message
+            return Ok(vec![DiscoveryMessage {
+                message_type: MessageType::TextMessage,
+                peer_id: peer_id.to_string(),
+                port,
+                hostname,
+                timestamp: Utc::now(),
+                text: Some(text.to_string()),
+                message_id: None,
+                seq_no: None,
+                total_chunks: None,
+                payload_len: None,
+                checksum: None,
+                payload: None,
+            }]);
+        }
+
+        // Chunked message
+        let message_id = Uuid::new_v4().to_string();
+        let chunks: Vec<&[u8]> = text_bytes.chunks(CHUNK_PAYLOAD_BYTES).collect();
+        let total_chunks = chunks.len() as u32;
+        
+        let mut messages = Vec::new();
+        for (seq_no, chunk) in chunks.iter().enumerate() {
+            let checksum = simple_checksum(chunk);
+            messages.push(DiscoveryMessage {
+                message_type: MessageType::TextChunk,
+                peer_id: peer_id.to_string(),
+                port,
+                hostname: hostname.clone(),
+                timestamp: Utc::now(),
+                text: None,
+                message_id: Some(message_id.clone()),
+                seq_no: Some(seq_no as u32),
+                total_chunks: Some(total_chunks),
+                payload_len: Some(chunk.len() as u32),
+                checksum: Some(checksum),
+                payload: Some(chunk.to_vec()),
+            });
+        }
+        
+        Ok(messages)
+    }
+
 
     /// Stop the discovery service
     #[allow(dead_code)]
@@ -612,5 +861,256 @@ mod tests {
         // Test that the registry is accessible
         let registry = discovery_service.registry();
         assert_eq!(registry.peer_count().await, 0);
+    }
+
+    #[test]
+    fn test_chunking_small_message() {
+        let discovery_service = DiscoveryService::new(Duration::from_secs(30));
+        let small_text = "Hello, World!";
+        
+        let messages = discovery_service.chunk_text_to_messages(small_text, "test-peer", 7878, None).unwrap();
+        
+        // Small message should be sent as single TextMessage
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].message_type, MessageType::TextMessage);
+        assert_eq!(messages[0].text, Some(small_text.to_string()));
+        assert!(messages[0].message_id.is_none());
+        assert!(messages[0].seq_no.is_none());
+        assert!(messages[0].total_chunks.is_none());
+    }
+
+    #[test]
+    fn test_chunking_large_message() {
+        let discovery_service = DiscoveryService::new(Duration::from_secs(30));
+        // Create a message larger than CHUNK_PAYLOAD_BYTES (800)
+        let large_text = "A".repeat(2000);
+        
+        let messages = discovery_service.chunk_text_to_messages(&large_text, "test-peer", 7878, None).unwrap();
+        
+        // Large message should be chunked
+        assert!(messages.len() > 1);
+        assert_eq!(messages[0].message_type, MessageType::TextChunk);
+        assert!(messages[0].message_id.is_some());
+        assert!(messages[0].seq_no.is_some());
+        assert!(messages[0].total_chunks.is_some());
+        assert!(messages[0].payload.is_some());
+        assert!(messages[0].checksum.is_some());
+        
+        // All chunks should have the same message_id
+        let message_id = messages[0].message_id.as_ref().unwrap();
+        for (i, message) in messages.iter().enumerate() {
+            assert_eq!(message.message_type, MessageType::TextChunk);
+            assert_eq!(message.message_id.as_ref().unwrap(), message_id);
+            assert_eq!(message.seq_no.unwrap(), i as u32);
+            assert_eq!(message.total_chunks.unwrap(), messages.len() as u32);
+            assert!(message.payload.is_some());
+            assert!(message.checksum.is_some());
+        }
+    }
+
+    #[test]
+    fn test_chunking_exact_threshold() {
+        let discovery_service = DiscoveryService::new(Duration::from_secs(30));
+        // Create a message exactly at the threshold
+        let exact_text = "A".repeat(CHUNK_PAYLOAD_BYTES);
+        
+        let messages = discovery_service.chunk_text_to_messages(&exact_text, "test-peer", 7878, None).unwrap();
+        
+        // Should be sent as single message (≤ threshold)
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].message_type, MessageType::TextMessage);
+    }
+
+    #[test]
+    fn test_chunking_just_over_threshold() {
+        let discovery_service = DiscoveryService::new(Duration::from_secs(30));
+        // Create a message just over the threshold
+        let over_text = "A".repeat(CHUNK_PAYLOAD_BYTES + 1);
+        
+        let messages = discovery_service.chunk_text_to_messages(&over_text, "test-peer", 7878, None).unwrap();
+        
+        // Should be chunked (> threshold)
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].message_type, MessageType::TextChunk);
+        assert_eq!(messages[1].message_type, MessageType::TextChunk);
+    }
+
+    #[test]
+    fn test_checksum_calculation() {
+        let data1 = b"Hello, World!";
+        let data2 = b"Hello, World!";
+        let data3 = b"Hello, World?";
+        
+        let checksum1 = simple_checksum(data1);
+        let checksum2 = simple_checksum(data2);
+        let checksum3 = simple_checksum(data3);
+        
+        // Same data should have same checksum
+        assert_eq!(checksum1, checksum2);
+        // Different data should have different checksum
+        assert_ne!(checksum1, checksum3);
+    }
+
+    #[test]
+    fn test_reassembly_state_creation() {
+        let state = ReassemblyState::new(3, "sender-peer".to_string());
+        
+        assert_eq!(state.total_chunks, 3);
+        assert_eq!(state.received_count, 0);
+        assert_eq!(state.received_chunks.len(), 3);
+        assert!(!state.is_complete());
+        assert!(!state.is_stale());
+    }
+
+    #[test]
+    fn test_reassembly_state_add_chunk() {
+        let mut state = ReassemblyState::new(3, "sender-peer".to_string());
+        
+        // Add first chunk
+        let is_complete = state.add_chunk(0, b"Hello".to_vec());
+        assert!(!is_complete);
+        assert_eq!(state.received_count, 1);
+        
+        // Add second chunk
+        let is_complete = state.add_chunk(1, b", ".to_vec());
+        assert!(!is_complete);
+        assert_eq!(state.received_count, 2);
+        
+        // Add third chunk
+        let is_complete = state.add_chunk(2, b"World!".to_vec());
+        assert!(is_complete);
+        assert_eq!(state.received_count, 3);
+        assert!(state.is_complete());
+    }
+
+    #[test]
+    fn test_reassembly_state_duplicate_chunk() {
+        let mut state = ReassemblyState::new(2, "sender-peer".to_string());
+        
+        // Add same chunk twice
+        let is_complete1 = state.add_chunk(0, b"Hello".to_vec());
+        let is_complete2 = state.add_chunk(0, b"Hello".to_vec());
+        
+        assert!(!is_complete1);
+        assert!(!is_complete2);
+        assert_eq!(state.received_count, 1); // Should still be 1, not 2
+    }
+
+    #[test]
+    fn test_reassembly_state_invalid_sequence() {
+        let mut state = ReassemblyState::new(2, "sender-peer".to_string());
+        
+        // Try to add chunk with invalid sequence number
+        let is_complete = state.add_chunk(5, b"Hello".to_vec());
+        
+        assert!(!is_complete);
+        assert_eq!(state.received_count, 0);
+    }
+
+    #[test]
+    fn test_reassembly_complete_message() {
+        let mut state = ReassemblyState::new(3, "sender-peer".to_string());
+        
+        state.add_chunk(0, b"Hello".to_vec());
+        state.add_chunk(1, b", ".to_vec());
+        state.add_chunk(2, b"World!".to_vec());
+        
+        let result = state.reassemble().unwrap();
+        assert_eq!(result, "Hello, World!");
+    }
+
+    #[test]
+    fn test_reassembly_incomplete_message() {
+        let mut state = ReassemblyState::new(3, "sender-peer".to_string());
+        
+        state.add_chunk(0, b"Hello".to_vec());
+        // Missing chunks 1 and 2
+        
+        let result = state.reassemble();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_reassembly_utf8_handling() {
+        let mut state = ReassemblyState::new(2, "sender-peer".to_string());
+        
+        // Test UTF-8 characters that span multiple bytes
+        let emoji = "Hello 🌍 World!";
+        let bytes = emoji.as_bytes();
+        let mid = bytes.len() / 2;
+        
+        state.add_chunk(0, bytes[..mid].to_vec());
+        state.add_chunk(1, bytes[mid..].to_vec());
+        
+        let result = state.reassemble().unwrap();
+        assert_eq!(result, emoji);
+    }
+
+    #[test]
+    fn test_message_serialization_deserialization() {
+        let original_message = DiscoveryMessage {
+            message_type: MessageType::TextChunk,
+            peer_id: "test-peer".to_string(),
+            port: 7878,
+            hostname: Some("test-host".to_string()),
+            timestamp: Utc::now(),
+            text: None,
+            message_id: Some("test-message-id".to_string()),
+            seq_no: Some(0),
+            total_chunks: Some(2),
+            payload_len: Some(5),
+            checksum: Some(12345),
+            payload: Some(b"Hello".to_vec()),
+        };
+        
+        // Serialize
+        let serialized = serde_json::to_vec(&original_message).unwrap();
+        
+        // Deserialize
+        let deserialized: DiscoveryMessage = serde_json::from_slice(&serialized).unwrap();
+        
+        // Verify all fields match
+        assert_eq!(deserialized.message_type, original_message.message_type);
+        assert_eq!(deserialized.peer_id, original_message.peer_id);
+        assert_eq!(deserialized.port, original_message.port);
+        assert_eq!(deserialized.hostname, original_message.hostname);
+        assert_eq!(deserialized.text, original_message.text);
+        assert_eq!(deserialized.message_id, original_message.message_id);
+        assert_eq!(deserialized.seq_no, original_message.seq_no);
+        assert_eq!(deserialized.total_chunks, original_message.total_chunks);
+        assert_eq!(deserialized.payload_len, original_message.payload_len);
+        assert_eq!(deserialized.checksum, original_message.checksum);
+        assert_eq!(deserialized.payload, original_message.payload);
+    }
+
+    #[test]
+    fn test_message_size_validation() {
+        // Test that MAX_MESSAGE_BYTES is properly defined
+        assert_eq!(MAX_MESSAGE_BYTES, 256 * 1024);
+        assert!(MAX_MESSAGE_BYTES > CHUNK_PAYLOAD_BYTES);
+    }
+
+    #[test]
+    fn test_chunking_unicode_text() {
+        let discovery_service = DiscoveryService::new(Duration::from_secs(30));
+        // Test with Unicode text (emojis, accented characters, etc.)
+        let unicode_text = "Hello 🌍! Café naïve résumé 中文 العربية 🚀";
+        
+        let messages = discovery_service.chunk_text_to_messages(unicode_text, "test-peer", 7878, None).unwrap();
+        
+        // Should handle Unicode properly
+        if messages.len() == 1 {
+            assert_eq!(messages[0].text, Some(unicode_text.to_string()));
+        } else {
+            // If chunked, verify we can reassemble
+            let mut state = ReassemblyState::new(messages.len() as u32, "test-peer".to_string());
+            for (i, message) in messages.iter().enumerate() {
+                if let Some(payload) = &message.payload {
+                    state.add_chunk(i as u32, payload.clone());
+                }
+            }
+            let reassembled = state.reassemble().unwrap();
+            assert_eq!(reassembled, unicode_text);
+        }
     }
 } 
