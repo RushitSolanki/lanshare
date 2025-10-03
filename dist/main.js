@@ -439,12 +439,19 @@ async function initializeApp() {
                         window.__TAURI__.event.listen('text-received', (event) => {
                             console.log('Received text from peer:', event.payload);
                             if (textarea) {
-                                textarea.value = event.payload;
+                                const incoming = typeof event.payload === 'string' ? event.payload : '';
+                                textarea.value = incoming;
                                 // Update byte counter when text is received
                                 updateByteCounter();
-                                // Auto-copy to clipboard
-                                copyToClipboard(event.payload);
-                                setStatus('Received and copied to clipboard', '#38a169');
+                                // Auto-copy to clipboard (or clear if empty)
+                                if (incoming.trim()) {
+                                    copyToClipboard(incoming);
+                                    setStatus('Received and copied to clipboard', '#38a169');
+                                } else {
+                                    // Write empty string to effectively clear clipboard
+                                    copyToClipboard('');
+                                    setStatus('Received empty text — clipboard cleared', '#3182ce');
+                                }
                             }
                         });
                         console.log('Event listener set up successfully');
