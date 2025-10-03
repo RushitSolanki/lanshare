@@ -64,8 +64,7 @@ function updateByteCounter() {
     
     // Color coding based on usage
     let color = '#666'; // Default gray
-    if (percentage > 80) color = '#f59e0b'; // Orange
-    if (percentage > 95) color = '#ef4444'; // Red
+    if (percentage > 100) color = '#ef4444'; // Red
     
     byteCounterText.textContent = `${formattedBytes} / ${formattedMax}`;
     byteCounterText.style.color = color;
